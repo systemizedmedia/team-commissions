@@ -205,7 +205,6 @@
       TikTok: [
         "Laura Dimadi",
         "Carren Evangelista",
-        "Jimmy Clifford",
       ],
       YouTube: [
         "Cade Holmquist",
@@ -303,8 +302,12 @@
         const headers = getHeaders(rows);
         state[key].rows = rows;
         state[key].headers = headers;
+
+        // NEW: auto-map based on headers
+        autoMap(key);
+
         document.getElementById(hintId).textContent = `${file.name} • ${rows.length - 1} data rows • ${headers.length} columns`;
-        renderMappings();
+        renderMappings();           // will reflect selected guesses
         maybeEnableRun();
       };
       reader.readAsText(file);
@@ -361,15 +364,22 @@
     }
 
     function mappingBlock(title, datasetKey, headers, fields) {
-      const options = ['<option value="">— none —</option>']
-        .concat(headers.map(h => `<option value="${encodeHtml(h)}">${encodeHtml(h)}</option>`)).join('');
-      const rows = fields.map(f => `
-        <div class="row">
-          <div>
-            <label>${f.label}</label>
-            <select data-map-select="${datasetKey}:${f.key}">${options}</select>
-          </div>
-        </div>`).join('');
+      const rows = fields.map(f => {
+        const current = state[datasetKey].map[f.key] || '';
+        const options = ['<option value="">— none —</option>']
+          .concat(headers.map(h => {
+            const enc = encodeHtml(h);
+            const sel = (h === current) ? ' selected' : '';
+            return `<option value="${enc}"${sel}>${enc}</option>`;
+          })).join('');
+        return `
+          <div class="row">
+            <div>
+              <label>${f.label}</label>
+              <select data-map-select="${datasetKey}:${f.key}">${options}</select>
+            </div>
+          </div>`;
+      }).join('');
       return `<details open>
         <summary><div class="summary-row"><strong>${title}</strong><span class="hint">Map relevant columns</span></div></summary>
         <div style="padding:8px 4px 0">${rows}</div>
@@ -385,6 +395,134 @@
     }
 
     function encodeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+
+    /*****************
+     * Auto-mapping  *
+     *****************/
+    function autoMap(datasetKey){
+      const headers = state[datasetKey].headers || [];
+      if (!headers.length) return;
+
+      const H = headers.map(h => h.trim());
+      const pick = (...patterns) => bestHeader(H, patterns);
+
+      if (datasetKey === 'stripe') {
+        state[datasetKey].map = {
+          stripeId: pick(
+            /^(stripe\s*)?(customer\s*)?id$/i,
+            /^customer[_\s-]*id$/i,
+            /^stripe[_\s-]*(id|customer)$/i,
+            /^cust(?:omer)?[_\s-]*id$/i
+          ),
+          clientName: pick(
+            /^customer[_\s-]*name$/i,
+            /^client[_\s-]*name$/i,
+            /^name$/i
+          ),
+          email: pick(
+            /^customer[_\s-]*email$/i,
+            /^client[_\s-]*email$/i,
+            /^email$/i,
+            /^e[-_ ]?mail$/i
+          ),
+          amount: pick(
+            /^amount[_\s-]*(paid|total|received)?$/i,
+            /^(total|gross|net)[_\s-]*amount$/i,
+            /^amount$/i,
+            /^amount[_\s-]*paid$/i
+          ),
+        };
+      } else {
+        // main or onboard
+        state[datasetKey].map = {
+          clientName: pick(
+            /^client[_\s-]*name$/i,
+            /^customer[_\s-]*name$/i,
+            /^name$/i
+          ),
+          email: pick(
+            /^client[_\s-]*email$/i,
+            /^customer[_\s-]*email$/i,
+            /^email$/i
+          ),
+          stripeId: pick(
+            /^(stripe\s*)?(customer\s*)?id$/i,
+            /^customer[_\s-]*id$/i,
+            /^stripe[_\s-]*(id|customer)$/i,
+            /^cust(?:omer)?[_\s-]*id$/i
+          ),
+          amFacebook: pick(
+            /^(facebook|meta).*(am|manager|owner)$/i,
+            /^fb.*(am|manager)$/i,
+            /^facebook$/i
+          ),
+          amTikTok: pick(
+            /^tiktok.*(am|manager|owner)$/i,
+            /^tt.*(am|manager)$/i,
+            /^tiktok$/i
+          ),
+          amYouTube: pick(
+            /^(youtube|yt).*(am|manager|owner)$/i,
+            /^(youtube|yt)$/i
+          ),
+          amSMM: pick(
+            /^(smm|social[\s_-]*media).*(am|manager|owner)$/i,
+            /^social[\s_-]*media$/i,
+            /^smm$/i
+          ),
+          amCSM: pick(
+            /^(csm|client[\s_-]*success|customer[\s_-]*success).*(am|manager|owner)$/i,
+            /^(client|customer)[\s_-]*success$/i,
+            /^csm$/i
+          ),
+        };
+      }
+
+      // Remove unmatched nulls
+      Object.keys(state[datasetKey].map).forEach(k => {
+        if (!state[datasetKey].map[k]) delete state[datasetKey].map[k];
+      });
+    }
+
+    function bestHeader(headers, patterns){
+      // 1) Exact case-insensitive (for string patterns)
+      // 2) Regex match
+      // 3) Soft contains
+      const norm = s => (s || '').trim().toLowerCase().replace(/\s+/g,' ').replace(/[_-]/g,' ');
+      const Hn = headers.map(h => norm(h));
+
+      const testers = patterns.map(p => {
+        if (p instanceof RegExp) return h => p.test(h);
+        const n = norm(String(p));
+        return h => norm(h) === n;
+      });
+
+      // exact matches (string patterns)
+      for (let i=0;i<testers.length;i++){
+        const t = testers[i];
+        if (!(patterns[i] instanceof RegExp)) {
+          const idx = headers.findIndex(h => t(h));
+          if (idx !== -1) return headers[idx];
+        }
+      }
+      // regex matches
+      for (let i=0;i<testers.length;i++){
+        const t = testers[i];
+        if (patterns[i] instanceof RegExp) {
+          const idx = headers.findIndex(h => t(h));
+          if (idx !== -1) return headers[idx];
+        }
+      }
+      // soft contains fallback
+      for (let i=0;i<patterns.length;i++){
+        const p = patterns[i];
+        if (p instanceof RegExp) continue;
+        const target = norm(String(p));
+        const idx = Hn.findIndex(hn => hn.includes(target));
+        if (idx !== -1) return headers[idx];
+      }
+      return null;
+    }
 
     /*****************
      * Matching logic *
