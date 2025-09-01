@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Role Summaries (FB/TT/YT AMs, SMM, CSM) — Paid Stripe Only</title>
+  <title>Per-Person Summaries (FB/TT/YT AMs, SMM) — Paid Stripe Only, No Splits</title>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <style>
     :root { --bg:#0b1020; --card:#121931; --muted:#9fb0c0; --text:#eef3f8; --accent:#6aa3ff; }
@@ -21,7 +21,6 @@
     .col { flex:1 1 260px; min-width:260px; }
     button { background:linear-gradient(180deg, #2b58ff, #0049ff); color:white; border:none; padding:12px 16px; border-radius:12px; font-weight:600; cursor:pointer; }
     button.ghost { background:transparent; border:1px solid #2b58ff; color:#cfe0ff; }
-    .pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:#0c1430; border:1px solid #223158; color:#cfe0ff; font-size:12px; }
     table { width:100%; border-collapse:collapse; }
     th, td { border-bottom:1px solid #1d2748; padding:10px; font-size:13px; text-align:left; }
     th { color:#cfe0ff; font-weight:600; }
@@ -34,8 +33,8 @@
 </head>
 <body>
   <header>
-    <h1>Role Summaries — Paid Stripe Only</h1>
-    <p class="sub">Upload: <strong>1)</strong> Monday Active (assignments + Stripe ID), <strong>2)</strong> Monday Onboarding (names), <strong>3)</strong> Stripe (transactions). Match priority: <span class="code">Stripe ID</span> → email → name → fuzzy. AM cells can credit multiple people.</p>
+    <h1>Per-Person Summaries — Paid Stripe Only (No Splits)</h1>
+    <p class="sub">Upload: <strong>1)</strong> Monday Active (assignments + Stripe ID), <strong>2)</strong> Monday Onboarding (names), <strong>3)</strong> Stripe (transactions). Match priority: <span class="code">Stripe ID</span> → email → name → fuzzy. Each person sees their assigned clients, full revenue or “Not paid”.</p>
   </header>
 
   <main>
@@ -56,11 +55,10 @@
       </div>
       <div class="row" style="margin-top:12px; gap:8px; flex-wrap:wrap;">
         <button id="go">Match & Export</button>
-        <button class="ghost" id="dlFBSum" disabled>Download: FB AMs Summary (CSV)</button>
-        <button class="ghost" id="dlTTSum" disabled>Download: TT AMs Summary (CSV)</button>
-        <button class="ghost" id="dlYTSum" disabled>Download: YT AMs Summary (CSV)</button>
-        <button class="ghost" id="dlSMMSum" disabled>Download: SMM Summary (CSV)</button>
-        <button class="ghost" id="dlCSMSum" disabled>Download: CSM Summary (CSV)</button>
+        <button class="ghost" id="dlFB" disabled>Download: FB AMs (CSV)</button>
+        <button class="ghost" id="dlTT" disabled>Download: TT AMs (CSV)</button>
+        <button class="ghost" id="dlYT" disabled>Download: YT AMs (CSV)</button>
+        <button class="ghost" id="dlSMM" disabled>Download: SMM (CSV)</button>
         <button class="ghost" id="dlUnmatched" disabled>Download: Unmatched Paid Stripe Rows (CSV)</button>
       </div>
     </section>
@@ -99,22 +97,11 @@ YouTube</textarea>
 Krilen Andoque</textarea>
             </div>
           </div>
-          <div style="margin-top:8px;">
-            <label>CSMs</label>
-            <textarea id="csmList">Kizzia
-Anthony Jenkins
-Rain G
-Shao
-Sandra Catalina Mateus Abdala
-Niima Biuibrahim
-Preston Mast
-Gabriela Castelao</textarea>
-          </div>
         </div>
         <div>
           <h3 style="margin-top:0;">Columns detected</h3>
           <ul class="sub">
-            <li>Monday Active: <span class="code">Client Name</span>/<span class="code">Name</span>, <span class="code">FB AM</span>, <span class="code">TT AM</span>, <span class="code">YT AM</span>, <span class="code">SMM</span>, <span class="code">CSM</span>, <span class="code">Email</span>, <span class="code">Stripe ID</span>, and service flags: <span class="code">Facebook Service</span>, <span class="code">TikTok</span>, <span class="code">Youtube Service</span>, <span class="code">Organic Post Service</span></li>
+            <li>Monday Active: <span class="code">Client Name</span>/<span class="code">Name</span>, <span class="code">FB AM</span>, <span class="code">TT AM</span>, <span class="code">YT AM</span>, <span class="code">SMM</span>, <span class="code">Email</span>, <span class="code">Stripe ID</span>, service flags: <span class="code">Facebook Service</span>, <span class="code">TikTok</span>, <span class="code">Youtube Service</span>, <span class="code">Organic Post Service</span></li>
             <li>Onboarding: name-only fallback (doesn’t create assignments)</li>
             <li>Stripe: <span class="code">Customer ID</span> (cus_*), <span class="code">Status</span>, <span class="code">Customer Description</span>, <span class="code">Customer Email</span>, <span class="code">Amount</span>, <span class="code">Created date (UTC)</span></li>
           </ul>
@@ -123,11 +110,10 @@ Gabriela Castelao</textarea>
       </div>
     </section>
 
-    <section class="card"><h3 style="margin-top:0;">Preview — FB AMs Summary</h3><div id="prevFB"></div></section>
-    <section class="card"><h3 style="margin-top:0;">Preview — TT AMs Summary</h3><div id="prevTT"></div></section>
-    <section class="card"><h3 style="margin-top:0;">Preview — YT AMs Summary</h3><div id="prevYT"></div></section>
-    <section class="card"><h3 style="margin-top:0;">Preview — SMM (Posts) Summary</h3><div id="prevSMM"></div></section>
-    <section class="card"><h3 style="margin-top:0;">Preview — CSM Summary</h3><div id="prevCSM"></div></section>
+    <section class="card"><h3 style="margin-top:0;">Preview — FB AMs</h3><div id="prevFB"></div></section>
+    <section class="card"><h3 style="margin-top:0;">Preview — TT AMs</h3><div id="prevTT"></div></section>
+    <section class="card"><h3 style="margin-top:0;">Preview — YT AMs</h3><div id="prevYT"></div></section>
+    <section class="card"><h3 style="margin-top:0;">Preview — SMM (Posts)</h3><div id="prevSMM"></div></section>
 
     <section class="card">
       <h3 style="margin-top:0;">Run Log</h3>
@@ -159,7 +145,7 @@ Gabriela Castelao</textarea>
       for(let i=0;i<Math.min(10, data.length);i++){
         const row = data[i].map(v => (v||"").toString().trim());
         if(row.includes("Name") || row.includes("Client Name")) return i;
-        if(row.includes("Main Status") || row.includes("FB AM") || row.includes("TT AM") || row.includes("YT AM") || row.includes("CSM")) return i;
+        if(row.includes("Main Status") || row.includes("FB AM") || row.includes("TT AM") || row.includes("YT AM")) return i;
       }
       return 0;
     }
@@ -211,7 +197,6 @@ Gabriela Castelao</textarea>
         TT:  parseList($('#ttList').value),
         YT:  parseList($('#ytList').value),
         SMM: parseList($('#smmList').value),
-        CSM: parseList($('#csmList').value),
       };
       const maps = {};
       for(const [role, list] of Object.entries(roles)){
@@ -220,7 +205,7 @@ Gabriela Castelao</textarea>
       return maps;
     }
 
-    // Return ALL valid allowed names found in the cell, preserving order; soft token match allowed
+    // Return ALL valid allowed names found in the cell (order preserved; soft token match allowed)
     function pickAssignedAll(rawCell, allowedMap){
       if(!rawCell) return [];
       const out = [];
@@ -240,12 +225,6 @@ Gabriela Castelao</textarea>
       }
       // dedup but keep order
       return out.filter((v, i, a) => a.indexOf(v) === i);
-    }
-
-    // Return FIRST valid allowed person (for SMM/CSM)
-    function pickAssignedFirst(rawCell, allowedMap){
-      const arr = pickAssignedAll(rawCell, allowedMap);
-      return arr.length ? arr[0] : '';
     }
 
     function activeFlag(val, headerEcho){
@@ -278,7 +257,7 @@ Gabriela Castelao</textarea>
       return '';
     }
 
-    // Normalize Monday Active (AMs can be multiple; SMM/CSM single)
+    // Normalize Monday Active (AMs and SMM can be multiple)
     function normalizeMondayActive(objs, allowed){
       return objs.map(row => {
         const clientName = clientNameFromMondayRow(row);
@@ -291,8 +270,7 @@ Gabriela Castelao</textarea>
           fb_ams: pickAssignedAll(row['FB AM'], allowed.FB),
           tt_ams: pickAssignedAll(row['TT AM'], allowed.TT),
           yt_ams: pickAssignedAll(row['YT AM'], allowed.YT),
-          smm:    pickAssignedFirst(row['SMM'],   allowed.SMM),
-          csm:    pickAssignedFirst(row['CSM'],   allowed.CSM),
+          smms:   pickAssignedAll(row['SMM'],   allowed.SMM),
           services: servicesFromRow(row),
         };
       }).filter(r => r.client_key && !['client name','name','stripe id'].includes(r.client_key));
@@ -308,7 +286,7 @@ Gabriela Castelao</textarea>
           client_key: normalize(clientName),
           email: (row['Email'] || '').toString().trim().toLowerCase(),
           stripe_id: '',
-          fb_ams: [], tt_ams: [], yt_ams: [], smm: '', csm: '',
+          fb_ams: [], tt_ams: [], yt_ams: [], smms: [],
           services: servicesFromRow(row),
         };
       }).filter(r => r.client_key && !['client name','name','stripe id'].includes(r.client_key));
@@ -385,109 +363,100 @@ Gabriela Castelao</textarea>
       return bestScore >= 0.5 ? bestKey : null;
     }
 
-    // Helpers for summaries
-    function addToGroup(map, person, client, amount, dt){
-      if(!person) return;
-      if(!map.has(person)){
-        map.set(person, {
-          Person: person,
-          Unique_Clients: new Set(),
-          Clients: new Set(),
-          Paid_Transactions: 0,
-          Paid_Amount: 0,
-          First_Paid_Date: null,
-          Last_Paid_Date: null
-        });
-      }
-      const e = map.get(person);
-      e.Unique_Clients.add(client);
-      e.Clients.add(client);
-      e.Paid_Transactions += 1;
-      e.Paid_Amount += (amount || 0);
-      if(dt && !isNaN(dt)){
-        if(!e.First_Paid_Date || dt < e.First_Paid_Date) e.First_Paid_Date = dt;
-        if(!e.Last_Paid_Date  || dt > e.Last_Paid_Date)  e.Last_Paid_Date  = dt;
-      }
-    }
-
-    function finalizeSummary(map){
-      const rows = [];
-      for(const v of map.values()){
-        rows.push({
-          Person: v.Person,
-          Unique_Clients: v.Unique_Clients.size,
-          Clients_List: Array.from(v.Clients).sort().join('; '),
-          Paid_Transactions: v.Paid_Transactions,
-          Paid_Amount_Total: v.Paid_Amount.toFixed(2),
-          First_Paid_Date: v.First_Paid_Date ? v.First_Paid_Date.toISOString() : '',
-          Last_Paid_Date:  v.Last_Paid_Date  ? v.Last_Paid_Date.toISOString()  : ''
-        });
-      }
-      rows.sort((a,b)=> a.Person.localeCompare(b.Person));
-      return rows;
-    }
-
-    // AM summaries (split across services, then split across multiple AMs for that service)
-    function summarizeAM(matched, serviceKey){
-      const map = new Map();
-      for(const r of matched){
-        if(r._source !== 'active') continue;
-        const svcs = r.services || [];
-        if(!svcs.includes(serviceKey)) continue;
-
-        const svcCount = svcs.length || 1;
-        const baseAlloc = Number(r.amount||0) / svcCount;
+    // Compute full (non-split) paid totals per ACTIVE client_key (sum, count, first/last)
+    function computePaidTotals(activeMap, matchedRows){
+      const totals = new Map(); // key -> {sum, count, first, last}
+      for(const r of matchedRows){
+        // Only attribute to a client if it exists in Active
+        const active = activeMap.get(r.client_key);
+        if(!active) continue;
+        const amt = Number(r.amount || 0);
         const dt = r.created_utc ? new Date(r.created_utc) : null;
-
-        let ams = [];
-        if(serviceKey === 'Facebook') ams = r.fb_ams || [];
-        if(serviceKey === 'TikTok')   ams = r.tt_ams || [];
-        if(serviceKey === 'YouTube')  ams = r.yt_ams || [];
-
-        if(ams.length === 0) continue;
-
-        const perAmAlloc = baseAlloc / ams.length;
-        for(const am of ams){
-          addToGroup(map, am, r.client_name, perAmAlloc, dt);
+        if(!totals.has(r.client_key)){
+          totals.set(r.client_key, { sum: 0, count: 0, first: null, last: null });
+        }
+        const e = totals.get(r.client_key);
+        if(!isNaN(amt)) e.sum += amt;
+        e.count += 1;
+        if(dt && !isNaN(dt)){
+          if(!e.first || dt < e.first) e.first = dt;
+          if(!e.last  || dt > e.last)  e.last  = dt;
         }
       }
-      return finalizeSummary(map);
+      return totals;
     }
 
-    function summarizeSMM(matched){
-      const map = new Map();
-      for(const r of matched){
-        if(r._source !== 'active') continue;
-        if(!(r.services||[]).includes('Posts')) continue;
-        const person = r.smm;
-        if(!person) continue;
-        const svcCount = (r.services||[]).length || 1;
-        const alloc = Number(r.amount||0) / svcCount; // posts share
-        const dt = r.created_utc ? new Date(r.created_utc) : null;
-        addToGroup(map, person, r.client_name, alloc, dt);
-      }
-      return finalizeSummary(map);
-    }
+    // Build per-person summaries WITHOUT splitting amounts
+    function buildPersonSummaries(activeList, paidTotals){
+      // Index active by client_key for quick lookups
+      const activeByKey = new Map(activeList.map(r => [r.client_key, r]));
 
-    function summarizeCSM(matched){
-      const map = new Map();
-      for(const r of matched){
-        if(r._source !== 'active') continue;
-        const person = r.csm;
-        if(!person) continue;
-        const dt = r.created_utc ? new Date(r.created_utc) : null;
-        addToGroup(map, person, r.client_name, Number(r.amount||0), dt); // CSM gets full amount
+      function rowsFor(serviceKey){
+        const perPerson = new Map(); // person -> rows[]
+        for(const a of activeList){
+          const svcs = a.services || [];
+          const hasSvc =
+            serviceKey === 'Facebook' ? svcs.includes('Facebook') :
+            serviceKey === 'TikTok'   ? svcs.includes('TikTok')   :
+            serviceKey === 'YouTube'  ? svcs.includes('YouTube')  :
+            serviceKey === 'Posts'    ? svcs.includes('Posts')    : false;
+          if(!hasSvc) continue;
+
+          let people = [];
+          if(serviceKey === 'Facebook') people = a.fb_ams || [];
+          if(serviceKey === 'TikTok')   people = a.tt_ams || [];
+          if(serviceKey === 'YouTube')  people = a.yt_ams || [];
+          if(serviceKey === 'Posts')    people = a.smms   || [];
+
+          if(people.length === 0) continue;
+
+          const tot = paidTotals.get(a.client_key);
+          const revenue = tot ? tot.sum : 0;
+          const txCount = tot ? tot.count : 0;
+          const first = tot && tot.first ? tot.first.toISOString() : '';
+          const last  = tot && tot.last  ? tot.last.toISOString()  : '';
+
+          for(const person of people){
+            if(!perPerson.has(person)) perPerson.set(person, []);
+            perPerson.get(person).push({
+              Person: person,
+              Client: a.client_name,
+              Email: a.email || '',
+              Stripe_ID: a.stripe_id || '',
+              Services: (a.services || []).join('; '),
+              Revenue_Paid: revenue > 0 ? revenue.toFixed(2) : 'Not paid',
+              Paid_Txns: txCount,
+              First_Paid_Date: first,
+              Last_Paid_Date: last
+            });
+          }
+        }
+
+        // Flatten to a single array sorted by Person then Client
+        const out = [];
+        for(const [person, rows] of perPerson.entries()){
+          rows.sort((x,y)=> x.Client.localeCompare(y.Client));
+          for(const r of rows) out.push(r);
+        }
+        out.sort((a,b)=> a.Person.localeCompare(b.Person) || a.Client.localeCompare(b.Client));
+        return out;
       }
-      return finalizeSummary(map);
+
+      return {
+        fb: rowsFor('Facebook'),
+        tt: rowsFor('TikTok'),
+        yt: rowsFor('YouTube'),
+        smm: rowsFor('Posts'),
+      };
     }
 
     function renderTable(rows, targetSel){
       if(rows.length === 0){ document.querySelector(targetSel).innerHTML = '<p class="muted">No data.</p>'; return; }
       const headers = Object.keys(rows[0]);
       let html = '<div style="overflow:auto"><table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
-      html += rows.slice(0,300).map(r => '<tr>' + headers.map(h => `<td>${(r[h]??'')}</td>`).join('') + '</tr>').join('');
+      html += rows.slice(0,500).map(r => '<tr>' + headers.map(h => `<td>${(r[h]??'')}</td>`).join('') + '</tr>').join('');
       html += '</tbody></table></div>';
-      if(rows.length > 300) html += `<p class="sub">Showing first 300 of ${rows.length} rows.</p>`;
+      if(rows.length > 500) html += `<p class="sub">Showing first 500 of ${rows.length} rows.</p>`;
       document.querySelector(targetSel).innerHTML = html;
     }
 
@@ -522,7 +491,7 @@ Gabriela Castelao</textarea>
       // Indexes (Active preferred)
       const { byStripeId, byEmail, byClientKey } = buildIndexes(mondayActive, mondayOn);
 
-      // Match: Stripe → Monday (Active preferred), then copy assignments from the matched Monday row
+      // Match: Stripe → Monday (Active preferred)
       const matched = [];
       const unmatched = [];
 
@@ -556,12 +525,6 @@ Gabriela Castelao</textarea>
             _source: m._source,               // 'active' or 'onboarding'
             client_name: m.client_name,
             client_key: m.client_key,
-            services: m.services || [],
-            fb_ams: m.fb_ams || [],
-            tt_ams: m.tt_ams || [],
-            yt_ams: m.yt_ams || [],
-            smm:   m.smm   || '',
-            csm:   m.csm   || '',
             amount: t.amount || 0,
             created_utc: t.created_utc || '',
           });
@@ -573,32 +536,29 @@ Gabriela Castelao</textarea>
       appendLog(`Matched paid Stripe → Monday: ${matched.length}`);
       appendLog(`Unmatched paid Stripe: ${unmatched.length}`);
 
-      // Build role summaries (Active only)
-      const fbSummary  = summarizeAM(matched, 'Facebook');
-      const ttSummary  = summarizeAM(matched, 'TikTok');
-      const ytSummary  = summarizeAM(matched, 'YouTube');
-      const smmSummary = summarizeSMM(matched);
-      const csmSummary = summarizeCSM(matched);
+      // Compute full (non-split) totals per ACTIVE client
+      const activeMap = new Map(mondayActive.map(r => [r.client_key, r]));
+      const paidTotals = computePaidTotals(activeMap, matched);
+
+      // Build per-person summaries (each client once per assigned person)
+      const { fb, tt, yt, smm } = buildPersonSummaries(mondayActive, paidTotals);
 
       // Render previews
-      renderTable(fbSummary,  '#prevFB');
-      renderTable(ttSummary,  '#prevTT');
-      renderTable(ytSummary,  '#prevYT');
-      renderTable(smmSummary, '#prevSMM');
-      renderTable(csmSummary, '#prevCSM');
+      renderTable(fb,  '#prevFB');
+      renderTable(tt,  '#prevTT');
+      renderTable(yt,  '#prevYT');
+      renderTable(smm, '#prevSMM');
 
       // Downloads
-      $('#dlFBSum').disabled = fbSummary.length === 0;
-      $('#dlTTSum').disabled = ttSummary.length === 0;
-      $('#dlYTSum').disabled = ytSummary.length === 0;
-      $('#dlSMMSum').disabled = smmSummary.length === 0;
-      $('#dlCSMSum').disabled = csmSummary.length === 0;
+      $('#dlFB').disabled = fb.length === 0;
+      $('#dlTT').disabled = tt.length === 0;
+      $('#dlYT').disabled = yt.length === 0;
+      $('#dlSMM').disabled = smm.length === 0;
 
-      $('#dlFBSum').onclick  = () => downloadCSV('summary_fb_ams.csv', fbSummary);
-      $('#dlTTSum').onclick  = () => downloadCSV('summary_tt_ams.csv', ttSummary);
-      $('#dlYTSum').onclick  = () => downloadCSV('summary_yt_ams.csv', ytSummary);
-      $('#dlSMMSum').onclick = () => downloadCSV('summary_smm_posts.csv', smmSummary);
-      $('#dlCSMSum').onclick = () => downloadCSV('summary_csms.csv', csmSummary);
+      $('#dlFB').onclick  = () => downloadCSV('fb_ams_per_person.csv', fb);
+      $('#dlTT').onclick  = () => downloadCSV('tt_ams_per_person.csv', tt);
+      $('#dlYT').onclick  = () => downloadCSV('yt_ams_per_person.csv', yt);
+      $('#dlSMM').onclick = () => downloadCSV('smm_per_person.csv', smm);
 
       $('#dlUnmatched').disabled = unmatched.length === 0;
       $('#dlUnmatched').onclick = () => downloadCSV('unmatched_paid_stripe_rows.csv', unmatched);
