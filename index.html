@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Team–Client Matcher (AM / CSM / SMM) — Paid Stripe Only</title>
+  <title>AM/SMM Assignments per Service — Paid Stripe Only</title>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <style>
     :root { --bg:#0b1020; --card:#121931; --muted:#9fb0c0; --text:#eef3f8; --accent:#6aa3ff; }
@@ -34,19 +34,19 @@
 </head>
 <body>
   <header>
-    <h1>Team–Client Matcher (AM / CSM / SMM) — Paid Stripe Only</h1>
-    <p class="sub">Upload 3 CSVs (Monday Active, Monday Onboarding, Stripe), then click <strong>Match & Export</strong>. We match by Stripe ID first.</p>
+    <h1>AM/SMM Assignments per Service — Paid Stripe Only</h1>
+    <p class="sub">Upload 3 CSVs (Monday Active, Monday Onboarding, Stripe). We match by <strong>Stripe ID (Active)</strong> → <strong>Email</strong> → <strong>Name</strong> → <strong>Fuzzy</strong>. Only Active assignments produce manager rows. Multi-service revenue is split evenly.</p>
   </header>
 
   <main>
     <section class="card">
       <div class="row">
         <div class="col">
-          <label>1) Monday — Active Clients CSV (has <span class="code">Stripe ID</span>)</label>
+          <label>1) Monday — Active Clients CSV (has <span class="code">Stripe ID</span> & assignments)</label>
           <input type="file" id="mondayActive" accept=".csv" />
         </div>
         <div class="col">
-          <label>2) Monday — Onboarding/New Clients CSV (client names only)</label>
+          <label>2) Monday — Onboarding/New Clients CSV (name-only fallback)</label>
           <input type="file" id="mondayOnboarding" accept=".csv" />
         </div>
         <div class="col">
@@ -56,9 +56,11 @@
       </div>
       <div class="row" style="margin-top:12px; gap:8px; flex-wrap:wrap;">
         <button id="go">Match & Export</button>
-        <button class="ghost" id="dlMatched" disabled>Download: Matched Clients per Manager (CSV)</button>
-        <button class="ghost" id="dlPerson" disabled>Download: Person Summary (AM/CSM/SMM) (CSV)</button>
-        <button class="ghost" id="dlUnmatched" disabled>Download: Unmatched Stripe Rows (CSV)</button>
+        <button class="ghost" id="dlAM" disabled>Download: AM Assignments by Service (CSV)</button>
+        <button class="ghost" id="dlSMM" disabled>Download: SMM (Posts) Assignments (CSV)</button>
+        <button class="ghost" id="dlAMNoPaid" disabled>Download: AM — Assigned but No Paid (CSV)</button>
+        <button class="ghost" id="dlSMMNoPaid" disabled>Download: SMM — Assigned but No Paid (CSV)</button>
+        <button class="ghost" id="dlUnmatched" disabled>Download: Unmatched Paid Stripe Rows (CSV)</button>
       </div>
     </section>
 
@@ -66,19 +68,8 @@
       <div class="grid-2">
         <div>
           <h3 style="margin-top:0;">Allowed Managers</h3>
-          <p class="sub" style="margin-bottom:8px;">Only these names will be matched. Edit if needed (comma or newline separated).</p>
+          <p class="sub" style="margin-bottom:8px;">Only these names are considered valid assignments. Edit if needed (comma or newline separated).</p>
           <div class="grid-2">
-            <div>
-              <label>CSMs</label>
-              <textarea id="csmList">Kizzia
-Anthony Jenkins
-Rain G
-Shao
-Sandra Catalina Mateus Abdala
-Niima Biuibrahim
-Preston Mast
-Gabriela Castelao</textarea>
-            </div>
             <div>
               <label>FB AMs</label>
               <textarea id="fbList">Evarose
@@ -89,46 +80,59 @@ Marie Guirjen
 Veronica Trigo
 May Muñoz</textarea>
             </div>
-          </div>
-          <div class="grid-2" style="margin-top:8px;">
             <div>
               <label>TT AMs</label>
               <textarea id="ttList">Laura Dimadi
 Carren Evangelista</textarea>
             </div>
+          </div>
+          <div class="grid-2" style="margin-top:8px;">
             <div>
               <label>YT AMs</label>
               <textarea id="ytList">Cade Holmquist
 YouTube</textarea>
             </div>
-          </div>
-          <div style="margin-top:8px;">
-            <label>SMMs</label>
-            <textarea id="smmList">Jasmine Garcia
+            <div>
+              <label>SMMs (Posts)</label>
+              <textarea id="smmList">Jasmine Garcia
 Krilen Andoque</textarea>
+            </div>
           </div>
         </div>
         <div>
-          <h3 style="margin-top:0;">Status & Columns</h3>
-          <div class="row">
-            <span class="pill">Stripe statuses counted: <strong>Paid / Succeeded / Complete(d)</strong></span>
-          </div>
-          <p class="sub" style="margin-top:12px;">Monday columns used (if present): <span class="code">Client Name</span>/<span class="code">Name</span>, <span class="code">CSM</span>, <span class="code">FB AM</span>, <span class="code">TT AM</span>, <span class="code">YT AM</span>, <span class="code">SMM</span>, <span class="code">Email</span>, <span class="code">Stripe ID</span>, service hints.</p>
-          <p class="sub">Stripe columns used: <span class="code">Customer ID</span> (or any field with <span class="code">cus_*</span>), <span class="code">Status</span>, <span class="code">Customer Description</span>, <span class="code">Customer Email</span>, <span class="code">Amount</span>, <span class="code">Created date (UTC)</span>.</p>
+          <h3 style="margin-top:0;">Columns we look for</h3>
+          <ul class="sub">
+            <li>Monday Active: <span class="code">Client Name</span>/<span class="code">Name</span>, <span class="code">FB AM</span>, <span class="code">TT AM</span>, <span class="code">YT AM</span>, <span class="code">SMM</span>, <span class="code">Email</span>, <span class="code">Stripe ID</span>, service flags: <span class="code">Facebook Service</span>, <span class="code">TikTok</span>, <span class="code">Youtube Service</span>, <span class="code">Organic Post Service</span></li>
+            <li>Monday Onboarding: name-only is fine</li>
+            <li>Stripe: <span class="code">Customer ID</span> (cus_*), <span class="code">Status</span>, <span class="code">Customer Description</span>, <span class="code">Customer Email</span>, <span class="code">Amount</span>, <span class="code">Created date (UTC)</span></li>
+          </ul>
+          <p class="sub"><span class="pill">Counts only Paid/Succeeded/Completed Stripe rows</span></p>
         </div>
       </div>
     </section>
 
     <section class="card">
-      <h3 style="margin-top:0;">Preview — Matched Clients per Manager</h3>
-      <p class="sub">Paid transactions only. Aggregated per <strong>Role, Person, Client</strong>.</p>
-      <div id="preview"></div>
+      <h3 style="margin-top:0;">Preview — AM Assignments by Service</h3>
+      <p class="sub">Each client appears under the AM for each active service (FB/TT/YT). Amounts are allocated evenly across the client’s active services.</p>
+      <div id="previewAM"></div>
     </section>
 
     <section class="card">
-      <h3 style="margin-top:0;">Preview — Person Summary</h3>
-      <p class="sub">Totals per <strong>Role, Person</strong> across all matched clients (paid-only). Includes unique client count and date span.</p>
-      <div id="previewPerson"></div>
+      <h3 style="margin-top:0;">Preview — SMM Assignments (Posts)</h3>
+      <p class="sub">Clients with Posts appear under the assigned SMM.</p>
+      <div id="previewSMM"></div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin-top:0;">Preview — AM: Assigned but No Paid</h3>
+      <p class="sub">Active clients with FB/TT/YT assignments but no paid Stripe match in this export period.</p>
+      <div id="previewAMNoPaid"></div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin-top:0;">Preview — SMM: Assigned but No Paid</h3>
+      <p class="sub">Active clients with Posts + SMM assignment but no paid Stripe match in this export period.</p>
+      <div id="previewSMMNoPaid"></div>
     </section>
 
     <section class="card">
@@ -161,7 +165,7 @@ Krilen Andoque</textarea>
       for(let i=0;i<Math.min(10, data.length);i++){
         const row = data[i].map(v => (v||"").toString().trim());
         if(row.includes("Name") || row.includes("Client Name")) return i;
-        if(row.includes("Main Status") || row.includes("CSM") || row.includes("FB AM")) return i;
+        if(row.includes("Main Status") || row.includes("FB AM") || row.includes("TT AM") || row.includes("YT AM")) return i;
       }
       return 0;
     }
@@ -225,12 +229,11 @@ Krilen Andoque</textarea>
           }
         }
       }
-      return dedup(out);
+      return out;
     }
 
     function buildAllowedMaps(){
       const roles = {
-        CSM: parseList($('#csmList').value),
         FB:  parseList($('#fbList').value),
         TT:  parseList($('#ttList').value),
         YT:  parseList($('#ytList').value),
@@ -273,27 +276,46 @@ Krilen Andoque</textarea>
       return '';
     }
 
-    function normalizeMonday(mondayObjs, allowed){
-      return mondayObjs.map(row => {
+    // Normalize Monday Active (with assignments)
+    function normalizeMondayActive(objs, allowed){
+      return objs.map(row => {
         const clientName = clientNameFromMondayRow(row);
         return {
+          _source: 'active',
           client_name: clientName,
           client_key: normalize(clientName),
           email: (row['Email'] || '').toString().trim().toLowerCase(),
-          stripe_id: (row['Stripe ID'] || '').toString().trim().toLowerCase(), // e.g., cus_XXXX from Active sheet
-          csm_list: matchAllowed(row['CSM'], allowed.CSM),
+          stripe_id: (row['Stripe ID'] || '').toString().trim().toLowerCase(),
           fb_am: matchAllowed(row['FB AM'], allowed.FB),
           tt_am: matchAllowed(row['TT AM'], allowed.TT),
           yt_am: matchAllowed(row['YT AM'], allowed.YT),
           smm_list: matchAllowed(row['SMM'], allowed.SMM),
           services: servicesFromRow(row),
         };
-      }).filter(r => r.client_key && r.client_key !== 'client name' && r.client_key !== 'name' && r.client_key !== 'stripe id');
+      }).filter(r => r.client_key && !['client name','name','stripe id'].includes(r.client_key));
     }
 
-    // Try hard to extract Stripe Customer ID (cus_...) from any column
+    // Normalize Monday Onboarding (name-only fallback; no assignments)
+    function normalizeMondayOnboarding(objs){
+      return objs.map(row => {
+        const clientName = clientNameFromMondayRow(row);
+        return {
+          _source: 'onboarding',
+          client_name: clientName,
+          client_key: normalize(clientName),
+          email: (row['Email'] || '').toString().trim().toLowerCase(),
+          stripe_id: '',
+          fb_am: [],
+          tt_am: [],
+          yt_am: [],
+          smm_list: [],
+          services: servicesFromRow(row),
+        };
+      }).filter(r => r.client_key && !['client name','name','stripe id'].includes(r.client_key));
+    }
+
+    // Try to extract Stripe Customer ID (cus_...)
     function extractStripeCustomerId(obj){
-      // common headers first
       const direct = obj['Customer ID'] || obj['Customer Id'] || obj['Customer'] || obj['customer_id'] || obj['customer'];
       const tryStr = (v) => {
         if(!v) return '';
@@ -302,8 +324,7 @@ Krilen Andoque</textarea>
       };
       let id = tryStr(direct);
       if(id) return id;
-      // search all fields for a cus_ token
-      for(const [k,v] of Object.entries(obj)){
+      for(const v of Object.values(obj)){
         const m = tryStr(v);
         if(m) return m;
       }
@@ -316,7 +337,7 @@ Krilen Andoque</textarea>
         const isPaid = ['paid','succeeded','success','captured','complete','completed','true'].some(w => status.includes(w));
         const custName = (row['Customer Description'] || '').toString();
         const custEmail = (row['Customer Email'] || '').toString().trim().toLowerCase();
-        const customerId = extractStripeCustomerId(row); // prioritize this
+        const customerId = extractStripeCustomerId(row);
         return {
           charge_id: row['id'] || row['charge_id'] || row['Charge ID'] || '',
           created_utc: row['Created date (UTC)'] || row['created_utc'] || row['Created'] || '',
@@ -326,22 +347,28 @@ Krilen Andoque</textarea>
           is_paid: isPaid,
           customer_name: custName,
           customer_email: custEmail,
-          customer_id: customerId,         // <-- Stripe Customer ID (cus_...)
+          customer_id: customerId,
           client_key: normalize(custName),
         };
       });
     }
 
-    function buildMondayIndex(mondayAll){
-      const byEmail = new Map();
-      const byClientKey = new Map();
-      const byStripeId = new Map();
-      for(const r of mondayAll){
-        if(r.email) byEmail.set(r.email, r);
+    // Build indexes: prefer Active over Onboarding
+    function buildIndexes(active, onboarding){
+      const byStripeId = new Map(); // Active only
+      const byEmail = new Map();    // prefer Active, fallback to Onboarding
+      const byClientKey = new Map();// prefer Active, fallback to Onboarding
+
+      for(const r of active){
+        if(r.stripe_id) byStripeId.set(r.stripe_id, r);
+        if(r.email && !byEmail.has(r.email)) byEmail.set(r.email, r);
         if(r.client_key && !byClientKey.has(r.client_key)) byClientKey.set(r.client_key, r);
-        if(r.stripe_id){ byStripeId.set(r.stripe_id, r); }
       }
-      return { byEmail, byClientKey, byStripeId };
+      for(const r of onboarding){
+        if(r.email && !byEmail.has(r.email)) byEmail.set(r.email, r);
+        if(r.client_key && !byClientKey.has(r.client_key)) byClientKey.set(r.client_key, r);
+      }
+      return { byStripeId, byEmail, byClientKey };
     }
 
     function fuzzyGuessClientKey(sKey, byClientKey){
@@ -359,119 +386,184 @@ Krilen Andoque</textarea>
       return null;
     }
 
-    function aggregatePerManager(rows){
-      const out = [];
-      const push = (role, person, client, services, amt, count, firstDt, lastDt) => {
-        out.push({
-          Role: role,
-          Person: person,
-          Client: client,
-          Services: services.join('; '),
-          Paid_Transactions: count,
-          Paid_Amount_Total: Number(amt || 0).toFixed(2),
-          First_Paid_Date: firstDt || '',
-          Last_Paid_Date: lastDt || ''
-        });
-      };
+    function renderTable(rows, targetSel){
+      if(rows.length === 0){ document.querySelector(targetSel).innerHTML = '<p class="muted">No data.</p>'; return; }
+      const headers = Object.keys(rows[0]);
+      let html = '<div style="overflow:auto"><table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+      html += rows.slice(0,300).map(r => '<tr>' + headers.map(h => `<td>${(r[h]??'')}</td>`).join('') + '</tr>').join('');
+      html += '</tbody></table></div>';
+      if(rows.length > 300) html += `<p class="sub">Showing first 300 of ${rows.length} rows.</p>`;
+      document.querySelector(targetSel).innerHTML = html;
+    }
 
-      function summarizeFor(role, nameGetter){
-        const map = new Map();
-        for(const r of rows){
-          const names = nameGetter(r);
-          if(!names || names.length === 0) continue;
-          for(const person of names){
-            const key = person + '||' + r.client_name_monday;
-            if(!map.has(key)){
-              map.set(key, {
-                person, client: r.client_name_monday,
-                services: new Set(r.services && r.services.length ? r.services : []),
-                amount: 0, count: 0, first: null, last: null
-              });
-            }
-            const entry = map.get(key);
-            entry.amount += (r.amount || 0);
-            entry.count += 1;
-            const dt = r.created_utc ? new Date(r.created_utc) : null;
-            if(dt && !isNaN(dt)){
-              if(!entry.first || dt < entry.first) entry.first = dt;
-              if(!entry.last || dt > entry.last) entry.last = dt;
-            }
-            (r.services || []).forEach(s => entry.services.add(s));
+    // Aggregate AM per service (FB/TT/YT). Only Active matches with an assigned AM produce rows.
+    function aggregateAMByService(matchedPaid){
+      const rows = [];
+      const map = new Map(); // key: service||am||client
+
+      for(const r of matchedPaid){
+        if(r._source !== 'active') continue; // only active produce assignments
+        const services = r.services || [];
+        const svcCount = services.length || 1;
+        const alloc = Number(r.amount || 0) / svcCount;
+        const dt = r.created_utc ? new Date(r.created_utc) : null;
+
+        for(const svc of services){
+          let am = '';
+          if(svc === 'Facebook') am = (r.fb_am && r.fb_am.length) ? r.fb_am[0] : '';
+          else if(svc === 'TikTok') am = (r.tt_am && r.tt_am.length) ? r.tt_am[0] : '';
+          else if(svc === 'YouTube') am = (r.yt_am && r.yt_am.length) ? r.yt_am[0] : '';
+          else continue; // Posts handled by SMM
+
+          if(!am) continue; // no assigned AM for this service
+
+          const key = `${svc}||${am}||${r.client_key}`;
+          if(!map.has(key)){
+            map.set(key, {
+              Service: svc,
+              AM: am,
+              Client: r.client_name,
+              client_key: r.client_key,
+              Paid_Transactions: 0,
+              Paid_Amount_Allocated: 0,
+              First_Paid_Date: null,
+              Last_Paid_Date: null
+            });
           }
-        }
-        for(const v of map.values()){
-          push(role, v.person, v.client, [...v.services], v.amount, v.count,
-               v.first ? v.first.toISOString() : '', v.last ? v.last.toISOString() : '');
+          const e = map.get(key);
+          e.Paid_Transactions += 1;
+          e.Paid_Amount_Allocated += alloc;
+          if(dt && !isNaN(dt)){
+            if(!e.First_Paid_Date || dt < e.First_Paid_Date) e.First_Paid_Date = dt;
+            if(!e.Last_Paid_Date  || dt > e.Last_Paid_Date)  e.Last_Paid_Date  = dt;
+          }
         }
       }
 
-      // AMs by service (Posts go to SMM, not AM)
-      summarizeFor('AM', r => {
-        const names = [];
-        if((r.services||[]).includes('Facebook') && r.fb_am && r.fb_am.length) names.push(r.fb_am[0]);
-        if((r.services||[]).includes('TikTok')   && r.tt_am && r.tt_am.length) names.push(r.tt_am[0]);
-        if((r.services||[]).includes('YouTube')  && r.yt_am && r.yt_am.length) names.push(r.yt_am[0]);
-        return dedup(names);
-      });
-
-      // CSMs across all matched revenue
-      summarizeFor('CSM', r => r.csm_list || []);
-
-      // SMMs only for Posts
-      summarizeFor('SMM', r => ((r.services||[]).includes('Posts') ? (r.smm_list||[]) : []));
-
-      out.sort((a,b) => a.Role.localeCompare(b.Role) || a.Person.localeCompare(b.Person) || a.Client.localeCompare(b.Client));
-      return out;
+      for(const v of map.values()){
+        rows.push({
+          Service: v.Service,
+          AM: v.AM,
+          Client: v.Client,
+          Paid_Transactions: v.Paid_Transactions,
+          Paid_Amount_Allocated: v.Paid_Amount_Allocated.toFixed(2),
+          First_Paid_Date: v.First_Paid_Date ? v.First_Paid_Date.toISOString() : '',
+          Last_Paid_Date:  v.Last_Paid_Date  ? v.Last_Paid_Date.toISOString()  : ''
+        });
+      }
+      rows.sort((a,b) =>
+        a.Service.localeCompare(b.Service) ||
+        a.AM.localeCompare(b.AM) ||
+        a.Client.localeCompare(b.Client)
+      );
+      return rows;
     }
 
-    function aggregatePersonSummary(perManagerRows){
-      const map = new Map();
-      for(const r of perManagerRows){
-        const key = r.Role + '||' + r.Person;
+    // Aggregate SMM for Posts only
+    function aggregateSMMPosts(matchedPaid){
+      const rows = [];
+      const map = new Map(); // key: Posts||smm||client
+
+      for(const r of matchedPaid){
+        if(r._source !== 'active') continue;
+        const services = r.services || [];
+        if(!services.includes('Posts')) continue;
+
+        const svcCount = services.length || 1;
+        const alloc = Number(r.amount || 0) / svcCount;
+        const dt = r.created_utc ? new Date(r.created_utc) : null;
+
+        const smm = (r.smm_list && r.smm_list.length) ? r.smm_list[0] : '';
+        if(!smm) continue;
+
+        const key = `Posts||${smm}||${r.client_key}`;
         if(!map.has(key)){
           map.set(key, {
-            Role: r.Role,
-            Person: r.Person,
-            Unique_Clients: new Set(),
+            Service: 'Posts',
+            SMM: smm,
+            Client: r.client_name,
+            client_key: r.client_key,
             Paid_Transactions: 0,
-            Paid_Amount_Total: 0,
+            Paid_Amount_Allocated: 0,
             First_Paid_Date: null,
             Last_Paid_Date: null
           });
         }
         const e = map.get(key);
-        e.Unique_Clients.add(r.Client);
-        e.Paid_Transactions += Number(r.Paid_Transactions || 0);
-        e.Paid_Amount_Total += Number(r.Paid_Amount_Total || 0);
-        const f = r.First_Paid_Date ? new Date(r.First_Paid_Date) : null;
-        const l = r.Last_Paid_Date ? new Date(r.Last_Paid_Date) : null;
-        if(f && !isNaN(f)) e.First_Paid_Date = (!e.First_Paid_Date || f < e.First_Paid_Date) ? f : e.First_Paid_Date;
-        if(l && !isNaN(l)) e.Last_Paid_Date = (!e.Last_Paid_Date || l > e.Last_Paid_Date) ? l : e.Last_Paid_Date;
+        e.Paid_Transactions += 1;
+        e.Paid_Amount_Allocated += alloc;
+        if(dt && !isNaN(dt)){
+          if(!e.First_Paid_Date || dt < e.First_Paid_Date) e.First_Paid_Date = dt;
+          if(!e.Last_Paid_Date  || dt > e.Last_Paid_Date)  e.Last_Paid_Date  = dt;
+        }
       }
-      const out = [];
+
       for(const v of map.values()){
-        out.push({
-          Role: v.Role,
-          Person: v.Person,
-          Unique_Clients: v.Unique_Clients.size,
+        rows.push({
+          Service: v.Service,
+          SMM: v.SMM,
+          Client: v.Client,
           Paid_Transactions: v.Paid_Transactions,
-          Paid_Amount_Total: v.Paid_Amount_Total.toFixed(2),
+          Paid_Amount_Allocated: v.Paid_Amount_Allocated.toFixed(2),
           First_Paid_Date: v.First_Paid_Date ? v.First_Paid_Date.toISOString() : '',
-          Last_Paid_Date: v.Last_Paid_Date ? v.Last_Paid_Date.toISOString() : ''
+          Last_Paid_Date:  v.Last_Paid_Date  ? v.Last_Paid_Date.toISOString()  : ''
         });
       }
-      out.sort((a,b) => a.Role.localeCompare(b.Role) || a.Person.localeCompare(b.Person));
+      rows.sort((a,b) =>
+        a.SMM.localeCompare(b.SMM) ||
+        a.Client.localeCompare(b.Client)
+      );
+      return rows;
+    }
+
+    // Build "assigned but no paid" lists from Active assignments compared to matched sets
+    function computeNoPaidActiveAM(activeList, matchedAMSet){
+      const out = [];
+      for(const m of activeList){
+        const svcs = m.services || [];
+        // FB
+        if(svcs.includes('Facebook') && m.fb_am && m.fb_am.length){
+          const am = m.fb_am[0];
+          const key = `Facebook||${am}||${m.client_key}`;
+          if(!matchedAMSet.has(key)){
+            out.push({ Service:'Facebook', AM: am, Client: m.client_name, Paid_Transactions: 0, Paid_Amount_Allocated: '0.00' });
+          }
+        }
+        // TT
+        if(svcs.includes('TikTok') && m.tt_am && m.tt_am.length){
+          const am = m.tt_am[0];
+          const key = `TikTok||${am}||${m.client_key}`;
+          if(!matchedAMSet.has(key)){
+            out.push({ Service:'TikTok', AM: am, Client: m.client_name, Paid_Transactions: 0, Paid_Amount_Allocated: '0.00' });
+          }
+        }
+        // YT
+        if(svcs.includes('YouTube') && m.yt_am && m.yt_am.length){
+          const am = m.yt_am[0];
+          const key = `YouTube||${am}||${m.client_key}`;
+          if(!matchedAMSet.has(key)){
+            out.push({ Service:'YouTube', AM: am, Client: m.client_name, Paid_Transactions: 0, Paid_Amount_Allocated: '0.00' });
+          }
+        }
+      }
+      out.sort((a,b)=> a.Service.localeCompare(b.Service) || a.AM.localeCompare(b.AM) || a.Client.localeCompare(b.Client));
       return out;
     }
 
-    function renderTable(rows, targetSel){
-      if(rows.length === 0){ document.querySelector(targetSel).innerHTML = '<p class="muted">No data.</p>'; return; }
-      const headers = Object.keys(rows[0]);
-      let html = '<div style="overflow:auto"><table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
-      html += rows.slice(0,200).map(r => '<tr>' + headers.map(h => `<td>${(r[h]??'')}</td>`).join('') + '</tr>').join('');
-      html += '</tbody></table></div>';
-      if(rows.length > 200) html += `<p class="sub">Showing first 200 of ${rows.length} rows.</p>`;
-      document.querySelector(targetSel).innerHTML = html;
+    function computeNoPaidActiveSMM(activeList, matchedSMMSet){
+      const out = [];
+      for(const m of activeList){
+        const svcs = m.services || [];
+        if(svcs.includes('Posts') && m.smm_list && m.smm_list.length){
+          const smm = m.smm_list[0];
+          const key = `Posts||${smm}||${m.client_key}`;
+          if(!matchedSMMSet.has(key)){
+            out.push({ Service:'Posts', SMM: smm, Client: m.client_name, Paid_Transactions: 0, Paid_Amount_Allocated: '0.00' });
+          }
+        }
+      }
+      out.sort((a,b)=> a.SMM.localeCompare(b.SMM) || a.Client.localeCompare(b.Client));
+      return out;
     }
 
     async function run(){
@@ -482,66 +574,71 @@ Krilen Andoque</textarea>
       if(!mondayActiveFile || !mondayOnboardingFile || !stripeFile){
         alert('Please select all 3 CSV files.'); return;
       }
+
       appendLog('Parsing Monday Active...');
-      const mondayActive = await csvToObjectsWithHeaderGuess(mondayActiveFile);
-      appendLog(`  Monday Active rows: ${mondayActive.length}`);
+      const mondayActiveRaw = await csvToObjectsWithHeaderGuess(mondayActiveFile);
+      appendLog(`  Active rows: ${mondayActiveRaw.length}`);
 
       appendLog('Parsing Monday Onboarding...');
-      const mondayOn = await csvToObjectsWithHeaderGuess(mondayOnboardingFile);
-      appendLog(`  Monday Onboarding rows: ${mondayOn.length}`);
+      const mondayOnRaw = await csvToObjectsWithHeaderGuess(mondayOnboardingFile);
+      appendLog(`  Onboarding rows: ${mondayOnRaw.length}`);
 
       appendLog('Parsing Stripe...');
       const stripeRaw = await csvToObjectsWithHeaderGuess(stripeFile);
       appendLog(`  Stripe rows: ${stripeRaw.length}`);
 
       const allowed = buildAllowedMaps();
-      const mondayNorm = normalizeMonday([...mondayActive, ...mondayOn], allowed);
-      appendLog(`Normalized Monday clients: ${mondayNorm.length}`);
+      const mondayActive = normalizeMondayActive(mondayActiveRaw, allowed);
+      const mondayOn = normalizeMondayOnboarding(mondayOnRaw);
 
-      const stripeNormAll = normalizeStripe(stripeRaw);
-      const stripePaid = stripeNormAll.filter(r => r.is_paid);
+      const stripeAll = normalizeStripe(stripeRaw);
+      const stripePaid = stripeAll.filter(r => r.is_paid);
       appendLog(`Stripe paid transactions kept: ${stripePaid.length}`);
 
-      // Build Monday indexes (email, client name, and STRIPE ID from Active sheet)
-      const mondayIndex = (function(){
-        const byEmail = new Map();
-        const byClientKey = new Map();
-        const byStripeId = new Map();
-        for(const r of mondayNorm){
-          if(r.email) byEmail.set(r.email, r);
-          if(r.client_key && !byClientKey.has(r.client_key)) byClientKey.set(r.client_key, r);
-          if(r.stripe_id) byStripeId.set(r.stripe_id, r);
-        }
-        return { byEmail, byClientKey, byStripeId };
-      })();
+      const { byStripeId, byEmail, byClientKey } = buildIndexes(mondayActive, mondayOn);
 
-      // Match priority: Customer ID -> Email -> Exact Name -> Fuzzy Name
       const matched = [];
       const unmatched = [];
+
       for(const t of stripePaid){
         let m = null;
-        if(t.customer_id && mondayIndex.byStripeId.has(t.customer_id)){
-          m = mondayIndex.byStripeId.get(t.customer_id);
-        } else if(t.customer_email && mondayIndex.byEmail.has(t.customer_email)){
-          m = mondayIndex.byEmail.get(t.customer_email);
-        } else if(t.client_key && mondayIndex.byClientKey.has(t.client_key)){
-          m = mondayIndex.byClientKey.get(t.client_key);
+
+        // Priority: Stripe ID (Active only) -> Email -> Exact name -> Fuzzy (prefers Active via index)
+        if(t.customer_id && byStripeId.has(t.customer_id)){
+          m = byStripeId.get(t.customer_id);
+        } else if(t.customer_email && byEmail.has(t.customer_email)){
+          m = byEmail.get(t.customer_email);
+        } else if(t.client_key && byClientKey.has(t.client_key)){
+          m = byClientKey.get(t.client_key);
         } else {
-          const guess = fuzzyGuessClientKey(t.client_key, mondayIndex.byClientKey);
-          if(guess && mondayIndex.byClientKey.has(guess)){
-            m = mondayIndex.byClientKey.get(guess);
-          }
+          const guess = (function(sKey){
+            if(!sKey) return null;
+            const tks = tokens(sKey);
+            if(tks.size === 0) return null;
+            let bestKey = null, bestScore = 0;
+            for(const [key] of byClientKey.entries()){
+              const ks = tokens(key);
+              const inter = [...tks].filter(x => ks.has(x)).length;
+              const score = inter / Math.max(tks.size, ks.size);
+              if(score > bestScore){ bestScore = score; bestKey = key; }
+            }
+            return bestScore >= 0.5 ? bestKey : null;
+          })(t.client_key);
+          if(guess && byClientKey.has(guess)) m = byClientKey.get(guess);
         }
+
         if(m){
           matched.push({
-            ...t,
-            client_name_monday: m.client_name,
-            fb_am: m.fb_am,
-            tt_am: m.tt_am,
-            yt_am: m.yt_am,
-            csm_list: m.csm_list,
-            smm_list: m.smm_list,
-            services: m.services,
+            _source: m._source,               // 'active' or 'onboarding'
+            client_name: m.client_name,
+            client_key: m.client_key,
+            services: m.services || [],
+            fb_am: m.fb_am || [],
+            tt_am: m.tt_am || [],
+            yt_am: m.yt_am || [],
+            smm_list: m.smm_list || [],
+            amount: t.amount || 0,
+            created_utc: t.created_utc || '',
           });
         } else {
           unmatched.push(t);
@@ -551,18 +648,51 @@ Krilen Andoque</textarea>
       appendLog(`Matched paid Stripe → Monday: ${matched.length}`);
       appendLog(`Unmatched paid Stripe: ${unmatched.length}`);
 
-      const perManager = aggregatePerManager(matched);
-      renderTable(perManager, '#preview');
+      // Build matched sets (for "no paid yet" detection)
+      const matchedAMSet = new Set();   // key: service||am||client_key
+      const matchedSMMSet = new Set();  // key: Posts||smm||client_key
+      for(const r of matched){
+        if(r._source !== 'active') continue;
+        const svcs = r.services || [];
+        if(svcs.includes('Facebook') && r.fb_am && r.fb_am.length){
+          matchedAMSet.add(`Facebook||${r.fb_am[0]}||${r.client_key}`);
+        }
+        if(svcs.includes('TikTok') && r.tt_am && r.tt_am.length){
+          matchedAMSet.add(`TikTok||${r.tt_am[0]}||${r.client_key}`);
+        }
+        if(svcs.includes('YouTube') && r.yt_am && r.yt_am.length){
+          matchedAMSet.add(`YouTube||${r.yt_am[0]}||${r.client_key}`);
+        }
+        if(svcs.includes('Posts') && r.smm_list && r.smm_list.length){
+          matchedSMMSet.add(`Posts||${r.smm_list[0]}||${r.client_key}`);
+        }
+      }
 
-      const personSummary = aggregatePersonSummary(perManager);
-      renderTable(personSummary, '#previewPerson');
+      const amRows = aggregateAMByService(matched);
+      const smmRows = aggregateSMMPosts(matched);
+
+      // Compute "assigned but no paid" from ACTIVE list vs matched sets
+      const amNoPaidRows  = computeNoPaidActiveAM(mondayActive, matchedAMSet);
+      const smmNoPaidRows = computeNoPaidActiveSMM(mondayActive, matchedSMMSet);
+
+      // Render previews
+      renderTable(amRows, '#previewAM');
+      renderTable(smmRows, '#previewSMM');
+      renderTable(amNoPaidRows, '#previewAMNoPaid');
+      renderTable(smmNoPaidRows, '#previewSMMNoPaid');
 
       // Downloads
-      $('#dlMatched').disabled = perManager.length === 0;
-      $('#dlMatched').onclick = () => downloadCSV('matched_clients_per_manager.csv', perManager);
+      $('#dlAM').disabled = amRows.length === 0;
+      $('#dlAM').onclick = () => downloadCSV('am_assignments_by_service.csv', amRows);
 
-      $('#dlPerson').disabled = personSummary.length === 0;
-      $('#dlPerson').onclick = () => downloadCSV('person_summary_totals.csv', personSummary);
+      $('#dlSMM').disabled = smmRows.length === 0;
+      $('#dlSMM').onclick = () => downloadCSV('smm_posts_assignments.csv', smmRows);
+
+      $('#dlAMNoPaid').disabled = amNoPaidRows.length === 0;
+      $('#dlAMNoPaid').onclick = () => downloadCSV('am_assigned_no_paid.csv', amNoPaidRows);
+
+      $('#dlSMMNoPaid').disabled = smmNoPaidRows.length === 0;
+      $('#dlSMMNoPaid').onclick = () => downloadCSV('smm_assigned_no_paid.csv', smmNoPaidRows);
 
       $('#dlUnmatched').disabled = unmatched.length === 0;
       $('#dlUnmatched').onclick = () => downloadCSV('unmatched_paid_stripe_rows.csv', unmatched);
