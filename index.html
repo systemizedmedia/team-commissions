@@ -1,607 +1,920 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AM & SMM Summaries — Fixed Roster (Paid Stripe Only)</title>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Client ↔ Stripe Matcher</title>
   <style>
-    :root { --bg:#0b1020; --card:#121931; --muted:#9fb0c0; --text:#eef3f8; --accent:#6aa3ff; --hl:#1d305f; }
+    :root {
+      --bg: #0b1220;
+      --muted: #19223a;
+      --card: #0f172a;
+      --accent: #4f46e5;
+      --accent-2: #22c55e;
+      --text: #e5e7eb;
+      --subtle: #94a3b8;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+    }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }
-    header { padding:24px; border-bottom:1px solid #1d2748; }
-    h1 { margin:0 0 6px; font-size:20px; }
-    p.sub { margin:0; font-size:13px; color:var(--muted); }
-    main { padding:24px; display:grid; gap:16px; grid-template-columns: 1fr; max-width:1200px; margin:0 auto; }
-    .card { background:var(--card); border:1px solid #1d2748; border-radius:16px; padding:16px; }
-    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:end; }
-    label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
-    input[type=file] { width:100%; background:#0c1430; color:var(--text); border:1px solid #223158; border-radius:10px; padding:10px 12px; }
-    button { background:linear-gradient(180deg, #2b58ff, #0049ff); color:white; border:none; padding:12px 16px; border-radius:12px; font-weight:600; cursor:pointer; }
-    button.ghost { background:transparent; border:1px solid #2b58ff; color:#cfe0ff; }
-    table { width:100%; border-collapse:collapse; }
-    th, td { border-bottom:1px solid #1d2748; padding:10px; font-size:13px; text-align:left; vertical-align:top; }
-    th { color:#cfe0ff; font-weight:600; }
-    .muted { color:var(--muted); }
-    .sectionTitle { margin:0 0 8px; }
-    .personBox { border:1px solid #1d2748; border-radius:12px; padding:12px; margin:10px 0 18px; background:#0e1530; }
-    .personBox h4 { margin:0 0 6px; font-size:15px; }
-    .totals { margin:4px 0 10px; font-size:13px; color:#e5efff; }
-    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    @media (max-width: 900px){ .grid-2{ grid-template-columns:1fr; } }
-    footer { padding:18px 24px; color:#90a6bd; font-size:12px; text-align:center; }
-    .sumline { margin:6px 0 10px; font-size:13px; color:#cfe0ff; }
+    body {
+      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: linear-gradient(180deg, var(--bg), #0a0f1a 65%);
+      color: var(--text);
+    }
+    header {
+      padding: 28px 20px 10px; text-align: center; position: sticky; top: 0; backdrop-filter: blur(8px); background: linear-gradient(180deg, rgba(11,18,32,.9), rgba(11,18,32,.6)); z-index: 40; border-bottom: 1px solid #1f2937;
+    }
+    h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: .2px; }
+    .subtitle { color: var(--subtle); font-size: 13px; }
+    main { max-width: 1200px; margin: 20px auto 80px; padding: 0 16px; }
+
+    .grid { display: grid; gap: 14px; }
+    @media (min-width: 920px) { .grid-3 { grid-template-columns: repeat(3, 1fr);} }
+    @media (max-width: 919px) { .grid-3 { grid-template-columns: 1fr; } }
+
+    .card { background: var(--card); border: 1px solid #1f2937; border-radius: 14px; padding: 16px; box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+    .card h2 { font-size: 16px; margin: 0 0 8px; }
+    .card h3 { font-size: 14px; margin: 0 0 8px; color: var(--subtle); font-weight: 600; }
+
+    .hint { color: var(--subtle); font-size: 12px; }
+    .row { display:flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .row > * { flex: 1; }
+
+    .filebox { border: 1px dashed #334155; padding: 10px; border-radius: 10px; background: #0b1220; }
+    input[type="file"] { width: 100%; padding: 8px; color: var(--subtle); }
+
+    select, input[type="text"], input[type="number"], input[type="checkbox"] {
+      background: #0b1220; border: 1px solid #334155; color: var(--text); padding: 8px 10px; border-radius: 10px; width: 100%; outline: none;
+    }
+    label { font-size: 12px; color: var(--subtle); display:block; margin: 6px 0 4px; }
+
+    .btn { background: var(--accent); color: white; border: none; padding: 10px 14px; border-radius: 12px; font-weight: 600; cursor: pointer; transition: transform .04s ease, opacity .2s; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-outline { background: transparent; border: 1px solid #334155; }
+    .btn-ghost { background: transparent; color: var(--text); }
+    .btn-success { background: var(--accent-2); }
+    .btn-warn { background: var(--warn); color: #111827; }
+
+    .pill { display:inline-flex; gap:6px; align-items:center; padding: 2px 8px; border-radius: 999px; font-size: 11px; border: 1px solid #334155; background:#0b1220; color: var(--subtle); }
+    .pill.new { border-color: #2563eb; color:#bfdbfe; }
+    .pill.multi { border-color: #22c55e; color:#bbf7d0; }
+
+    .tabbar { display:flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+    .tabbar button { background: #0b1220; border: 1px solid #334155; color: var(--subtle); padding: 8px 12px; border-radius: 10px; cursor:pointer; }
+    .tabbar button.active { background: var(--accent); color: white; border-color: transparent; }
+
+    details summary { cursor: pointer; user-select: none; }
+    details { border: 1px solid #1f2937; border-radius: 12px; padding: 10px 12px; background: #0b1220; }
+    details + details { margin-top: 8px; }
+    details .summary-row { display:flex; justify-content: space-between; align-items:center; gap: 8px; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #1f2937; font-size: 13px; }
+    th { color: var(--subtle); font-weight: 600; }
+
+    .right { text-align: right; }
+
+    .footer { color: var(--subtle); font-size: 12px; text-align:center; margin-top: 18px; }
+
+    .spacer { height: 10px; }
+
+    .tag { display:inline-block; font-size:11px; padding: 2px 6px; border-radius: 6px; background: #111827; border: 1px solid #334155; color: #e5e7eb; }
+    .tag.fb { background:#0b1322; border-color:#1e40af; }
+    .tag.tt { background:#08131a; border-color:#0ea5e9; }
+    .tag.yt { background:#1a0b0b; border-color:#b91c1c; }
+    .tag.smm { background:#10111a; border-color:#7c3aed; }
+    .tag.csm { background:#0e1a12; border-color:#16a34a; }
+
+    .badge { display:inline-flex; align-items:center; gap:6px; font-size: 11px; padding: 2px 6px; border-radius: 999px; border:1px solid #334155; color:#cbd5e1; }
+
+    .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background:#0a0f1a; border:1px solid #334155; border-bottom-width:2px; padding: 2px 6px; border-radius:6px; font-size:12px; }
   </style>
 </head>
 <body>
   <header>
-    <h1>AM & SMM Summaries — Fixed Roster</h1>
-    <p class="sub">Upload <strong>Monday Active</strong>, <strong>Monday Onboarding</strong> (new clients), and <strong>Stripe</strong> CSVs. Matching priority: <code>Stripe ID (cus_*)</code> → email → name → fuzzy. Stripe counts only paid/succeeded/complete-like statuses. No revenue splitting.</p>
+    <h1>Client ↔ Stripe Matcher</h1>
+    <div class="subtitle">Upload CSVs → Map columns → Match by <span class="kbd">Customer ID</span>, <span class="kbd">Email</span>, or <span class="kbd">Name</span> → Summaries per person & platform. New (Onboarding) flagged automatically.</div>
   </header>
 
   <main>
-    <section class="card">
-      <div class="row">
-        <div class="col" style="flex:1 1 260px; min-width:260px;">
-          <label>1) Monday — Active Clients CSV</label>
-          <input type="file" id="mondayActive" accept=".csv" />
+    <div class="grid grid-3">
+      <section class="card">
+        <h2>1) Upload CSVs</h2>
+        <div class="grid">
+          <div class="filebox">
+            <label>CSV 1 — Main Client List (from Monday.com)</label>
+            <input type="file" id="file-main" accept=".csv" />
+            <div class="hint" id="hint-main">No file chosen.</div>
+          </div>
+          <div class="filebox">
+            <label>CSV 2 — Onboarding (New Clients, from Monday.com)</label>
+            <input type="file" id="file-onboard" accept=".csv" />
+            <div class="hint" id="hint-onboard">No file chosen.</div>
+          </div>
+          <div class="filebox">
+            <label>CSV 3 — Stripe (payments or subscriptions)</label>
+            <input type="file" id="file-stripe" accept=".csv" />
+            <div class="hint" id="hint-stripe">No file chosen.</div>
+          </div>
         </div>
-        <div class="col" style="flex:1 1 260px; min-width:260px;">
-          <label>2) Monday — Onboarding (New Clients) CSV</label>
-          <input type="file" id="mondayOnboarding" accept=".csv" />
+        <div class="spacer"></div>
+        <div class="row">
+          <div>
+            <label>Currency Symbol</label>
+            <input type="text" id="currency-symbol" value="$" />
+          </div>
+          <div>
+            <label>Fuzzy Name Match</label>
+            <select id="fuzzy-mode">
+              <option value="off">Off (exact/normalized)</option>
+              <option value="loose">Loose</option>
+              <option value="aggressive">Aggressive</option>
+            </select>
+          </div>
+          <div>
+            <label>Lowercase Emails When Matching</label>
+            <select id="email-normalize">
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
         </div>
-        <div class="col" style="flex:1 1 260px; min-width:260px;">
-          <label>3) Stripe — Transactions CSV</label>
-          <input type="file" id="stripeCsv" accept=".csv" />
+      </section>
+
+      <section class="card">
+        <h2>2) Map Columns</h2>
+        <div class="hint">After uploading, pick which columns correspond to each field. (Don't worry—you only need to map what's present.)</div>
+
+        <div id="mapping-main"></div>
+        <div id="mapping-onboard" style="margin-top:12px"></div>
+        <div id="mapping-stripe" style="margin-top:12px"></div>
+      </section>
+
+      <section class="card">
+        <h2>3) Run Matching</h2>
+        <div class="row" style="align-items:flex-end">
+          <div>
+            <label for="btn-run">Ready?</label>
+            <button id="btn-run" class="btn" disabled>Match & Summarize</button>
+          </div>
+          <div>
+            <label>Export</label>
+            <div class="row">
+              <button id="btn-export-person" class="btn btn-outline" disabled>By Person (CSV)</button>
+              <button id="btn-export-platform" class="btn btn-outline" disabled>By Platform (CSV)</button>
+              <button id="btn-export-unmatched" class="btn btn-outline" disabled>Unmatched (CSV)</button>
+            </div>
+          </div>
         </div>
+        <div id="run-stats" class="hint" style="margin-top:8px"></div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:14px">
+      <div class="tabbar">
+        <button class="active" data-tab="person">By Person</button>
+        <button data-tab="platform">By Platform</button>
+        <button data-tab="unmatched">Unmatched</button>
+        <button data-tab="raw">Raw Matches</button>
       </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-        <button id="go">Generate</button>
-        <button class="ghost" id="dlFB" disabled>Download: Facebook AMs (CSV)</button>
-        <button class="ghost" id="dlTT" disabled>Download: TikTok AMs (CSV)</button>
-        <button class="ghost" id="dlYT" disabled>Download: YouTube AMs (CSV)</button>
-        <button class="ghost" id="dlSMM" disabled>Download: SMM (CSV)</button>
-        <button class="ghost" id="dlOnb" disabled>Download: Onboarding Summary (CSV)</button>
-        <button class="ghost" id="dlUnmatched" disabled>Download: Unmatched Paid Stripe Rows (CSV)</button>
-      </div>
-    </section>
-
-    <!-- Platform sections -->
-    <section class="card">
-      <h3 class="sectionTitle">Facebook AMs — Per-Person</h3>
-      <div id="fbWrap"></div>
-    </section>
-    <section class="card">
-      <h3 class="sectionTitle">TikTok AMs — Per-Person</h3>
-      <div id="ttWrap"></div>
-    </section>
-    <section class="card">
-      <h3 class="sectionTitle">YouTube AMs — Per-Person</h3>
-      <div id="ytWrap"></div>
-    </section>
-    <section class="card">
-      <h3 class="sectionTitle">SMM (Posts) — Per-Person</h3>
-      <div id="smmWrap"></div>
-    </section>
-
-    <!-- Onboarding summary -->
-    <section class="card">
-      <h3 class="sectionTitle">Onboarding — New Clients (no assignments)</h3>
-      <div id="onbWrap"></div>
-    </section>
-
-    <!-- Log -->
-    <section class="card">
-      <h3 class="sectionTitle">Run Log</h3>
-      <pre id="log" class="muted" style="white-space:pre-wrap; margin:0;"></pre>
+      <div id="view-person"></div>
+      <div id="view-platform" style="display:none"></div>
+      <div id="view-unmatched" style="display:none"></div>
+      <div id="view-raw" style="display:none"></div>
+      <div class="footer">Tip: Click a header to expand. Use your browser’s find (<span class="kbd">Ctrl/⌘+F</span>) to jump to a client.</div>
     </section>
   </main>
 
-  <footer>No data leaves your browser. Built for GitHub Pages / local use.</footer>
-
   <script>
-    // ---------- FIXED ROSTERS (edit here if your teams change) ----------
-    const ROSTERS = {
-      FB:  ["Evarose","Charlene","Joshua Advincula","Rainier Vann Muñoz","Marie Guirjen","Veronica Trigo","May Muñoz"],
-      TT:  ["Laura Dimadi","Carren Evangelista"],
-      YT:  ["Cade Holmquist","YouTube"],
-      SMM: ["Jasmine Garcia","Krilen Andoque"],
+    /*****************
+     * Config: Teams *
+     *****************/
+    const TEAMS = {
+      Facebook: [
+        "Evarose",
+        "Charlene",
+        "Joshua Advincula",
+        "Rainier Vann Muñoz",
+        "Marie Guirjen",
+        "Veronica Trigo",
+        "May Muñoz",
+      ],
+      TikTok: [
+        "Laura Dimadi",
+        "Carren Evangelista",
+      ],
+      YouTube: [
+        "Cade Holmquist",
+        "YouTube",
+      ],
+      SMM: [
+        "Jasmine Garcia",
+        "Krilen Andoque",
+      ],
+      CSM: [
+        "Kizzia",
+        "Anthony Jenkins",
+        "Kizzia", // appears twice in prompt; kept as-is, we will de-duplicate later
+        "Anthony Jenkins", // appears twice in prompt; kept as-is, we will de-duplicate later
+        "Rain G",
+        "Sandra Catalina Mateus Abdala",
+        "Shao",
+        "Preston Mast",
+      ]
     };
-    // -------------------------------------------------------------------
 
-    const $ = (sel) => document.querySelector(sel);
-    const logEl = $("#log");
-    const appendLog = (msg) => { logEl.textContent += msg + "\\n"; };
-
-    // Utils
-    function normalize(s){
-      if(!s) return "";
-      s = String(s).toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "");
-      s = s.replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim();
-      return s;
+    // Normalize duplicate names within team lists
+    for (const k of Object.keys(TEAMS)) {
+      TEAMS[k] = Array.from(new Set(TEAMS[k]));
     }
-    const tokens = (s) => new Set(normalize(s).split(" ").filter(Boolean));
-    const toFloat = (x) => {
-      if(x==null) return NaN;
-      const s = String(x).replace(/,/g, "");
-      const m = s.match(/[0-9.-]+/g);
-      if(!m) return NaN;
-      return parseFloat(m.join(""));
-    };
-    const fmt = (n) => {
-      if(!isFinite(n)) return '0.00';
-      try { return new Intl.NumberFormat('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}).format(n); }
-      catch { return (Math.round(n*100)/100).toFixed(2); }
-    };
 
-    function headerRowIndex(data){
-      for(let i=0;i<Math.min(10, data.length);i++){
-        const row = data[i].map(v => (v||"").toString().trim());
-        if(row.includes("Name") || row.includes("Client Name")) return i;
-        if(row.includes("FB AM") || row.includes("TT AM") || row.includes("YT AM") || row.includes("SMM")) return i;
+    /**********************
+     * CSV Parse (vanilla)
+     **********************/
+    function parseCSV(text) {
+      // Simple RFC4180-ish parser; handles quoted fields and commas within quotes.
+      const rows = [];
+      let i = 0, field = '', row = [], inQuotes = false;
+      while (i < text.length) {
+        const char = text[i];
+        if (inQuotes) {
+          if (char === '"') {
+            if (text[i+1] === '"') { field += '"'; i++; } // escaped quote
+            else { inQuotes = false; }
+          } else {
+            field += char;
+          }
+        } else {
+          if (char === '"') { inQuotes = true; }
+          else if (char === ',') { row.push(field); field = ''; }
+          else if (char === '\n') {
+            row.push(field); rows.push(row); field = ''; row = []; }
+          else if (char === '\r') { /* ignore CR */ }
+          else { field += char; }
+        }
+        i++;
       }
-      return 0;
+      // push last field
+      if (field.length || row.length) { row.push(field); rows.push(row); }
+      // trim empty trailing line
+      if (rows.length && rows[rows.length-1].length === 1 && rows[rows.length-1][0] === '') rows.pop();
+      return rows;
     }
 
-    function csvToObjectsWithHeaderGuess(file){
-      return new Promise((resolve, reject) => {
-        Papa.parse(file, {
-          complete: (res) => {
-            const rows = res.data.filter(r => r.length && r.some(cell => (cell||"").toString().trim() !== ""));
-            if(rows.length === 0){ return resolve([]); }
-            const hdrIdx = headerRowIndex(rows);
-            const headers = rows[hdrIdx].map(h => (h||"").toString().trim());
-            const objs = [];
-            for(let i = hdrIdx + 1; i < rows.length; i++){
-              const r = rows[i];
-              const obj = {};
-              headers.forEach((h, idx) => obj[h || `col_${idx}`] = r[idx]);
-              const hasAny = Object.values(obj).some(v => String(v||"").trim() !== "");
-              if(hasAny) objs.push(obj);
-            }
-            resolve(objs);
-          },
-          error: (err) => reject(err)
+    function rowsToObjects(rows) {
+      if (!rows || rows.length === 0) return [];
+      const headers = rows[0].map(h => (h || '').trim());
+      return rows.slice(1).map(r => {
+        const obj = {}; r.forEach((v, idx) => obj[headers[idx] || `col_${idx}`] = v); return obj;
+      });
+    }
+
+    function getHeaders(rows) {
+      return rows && rows.length ? rows[0].map(h => (h || '').trim()) : [];
+    }
+
+    /*****************
+     * File handling *
+     *****************/
+    const state = {
+      main: { rows: null, headers: [], map: {} },
+      onboard: { rows: null, headers: [], map: {} },
+      stripe: { rows: null, headers: [], map: {} },
+      results: null,
+    };
+
+    const fileElMain = document.getElementById('file-main');
+    const fileElOnboard = document.getElementById('file-onboard');
+    const fileElStripe = document.getElementById('file-stripe');
+
+    fileElMain.addEventListener('change', () => handleFile(fileElMain.files[0], 'main', 'hint-main'));
+    fileElOnboard.addEventListener('change', () => handleFile(fileElOnboard.files[0], 'onboard', 'hint-onboard'));
+    fileElStripe.addEventListener('change', () => handleFile(fileElStripe.files[0], 'stripe', 'hint-stripe'));
+
+    function handleFile(file, key, hintId) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        const text = e.target.result;
+        const rows = parseCSV(text);
+        const headers = getHeaders(rows);
+        state[key].rows = rows;
+        state[key].headers = headers;
+        document.getElementById(hintId).textContent = `${file.name} • ${rows.length - 1} data rows • ${headers.length} columns`;
+        renderMappings();
+        maybeEnableRun();
+      };
+      reader.readAsText(file);
+    }
+
+    /*****************
+     * Column mapping *
+     *****************/
+    const MAIN_FIELDS = [
+      { key: 'clientName', label: 'Client Name' },
+      { key: 'email', label: 'Email' },
+      { key: 'stripeId', label: 'Customer/Stripe ID' },
+      { key: 'am', label: 'Assigned AM (person)' },
+      { key: 'platform', label: 'Platform (Facebook/TikTok/YouTube/SMM/CSM)' },
+    ];
+
+    const STRIPE_FIELDS = [
+      { key: 'stripeId', label: 'Customer/Stripe ID' },
+      { key: 'clientName', label: 'Customer Name' },
+      { key: 'email', label: 'Email' },
+      { key: 'amount', label: 'Amount Paid (numeric)' },
+    ];
+
+    function renderMappings() {
+      // Main
+      const wrapMain = document.getElementById('mapping-main');
+      if (state.main.headers.length) {
+        wrapMain.innerHTML = mappingBlock('CSV 1 — Main Client List', 'main', state.main.headers, MAIN_FIELDS);
+      } else wrapMain.innerHTML = '';
+
+      // Onboard
+      const wrapOn = document.getElementById('mapping-onboard');
+      if (state.onboard.headers.length) {
+        wrapOn.innerHTML = mappingBlock('CSV 2 — Onboarding (New Clients)', 'onboard', state.onboard.headers, MAIN_FIELDS);
+      } else wrapOn.innerHTML = '';
+
+      // Stripe
+      const wrapStripe = document.getElementById('mapping-stripe');
+      if (state.stripe.headers.length) {
+        wrapStripe.innerHTML = mappingBlock('CSV 3 — Stripe', 'stripe', state.stripe.headers, STRIPE_FIELDS);
+      } else wrapStripe.innerHTML = '';
+
+      // attach listeners
+      document.querySelectorAll('[data-map-select]').forEach(sel => {
+        sel.addEventListener('change', (e) => {
+          const [dataset, fieldKey] = e.target.getAttribute('data-map-select').split(':');
+          state[dataset].map[fieldKey] = e.target.value || null;
+          maybeEnableRun();
         });
       });
     }
 
-    // pick people from a cell using fixed roster
-    function pickAssignedAll(rawCell, roster){
-      if(!rawCell) return [];
-      const out = [];
-      const parts = String(rawCell).split(/[,/;]| and /i).map(s => s.trim()).filter(Boolean);
-      const normRoster = roster.map(n => ({n, k: normalize(n)}));
-      for(const p of parts){
-        const np = normalize(p);
-        // exact or token-inclusive match
-        const pt = tokens(np);
-        for(const r of normRoster){
-          const rt = tokens(r.k);
-          const ptInR = [...pt].every(tok => rt.has(tok));
-          const rInPt = [...rt].every(tok => pt.has(tok));
-          if(r.k === np || ptInR || rInPt){ out.push(r.n); }
+    function mappingBlock(title, datasetKey, headers, fields) {
+      const options = ['<option value="">— none —</option>']
+        .concat(headers.map(h => `<option value="${encodeHtml(h)}">${encodeHtml(h)}</option>`)).join('');
+      const rows = fields.map(f => `
+        <div class="row">
+          <div>
+            <label>${f.label}</label>
+            <select data-map-select="${datasetKey}:${f.key}">${options}</select>
+          </div>
+        </div>`).join('');
+      return `<details open>
+        <summary><div class="summary-row"><strong>${title}</strong><span class="hint">Map relevant columns</span></div></summary>
+        <div style="padding:8px 4px 0">${rows}</div>
+      </details>`;
+    }
+
+    function maybeEnableRun() {
+      const needMain = !!state.main.rows && !!state.main.headers.length;
+      const needOn = !!state.onboard.rows && !!state.onboard.headers.length;
+      const needStripe = !!state.stripe.rows && !!state.stripe.headers.length;
+      const mappedSomeMain = Object.values(state.main.map || {}).filter(Boolean).length >= 2; // at least name/email/id
+      const mappedSomeOn = Object.values(state.onboard.map || {}).filter(Boolean).length >= 2;
+      const mappedStripe = ['stripeId','clientName','email','amount'].some(k => state.stripe.map[k]);
+      document.getElementById('btn-run').disabled = !(needMain && needStripe && (mappedSomeMain || mappedSomeOn) && mappedStripe);
+    }
+
+    function encodeHtml(s){ return (s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+
+    /*****************
+     * Matching logic *
+     *****************/
+    const btnRun = document.getElementById('btn-run');
+    const runStats = document.getElementById('run-stats');
+    const currencyEl = document.getElementById('currency-symbol');
+
+    btnRun.addEventListener('click', () => {
+      const cfg = {
+        currency: currencyEl.value || '$',
+        emailNormalize: document.getElementById('email-normalize').value === 'yes',
+        fuzzyMode: document.getElementById('fuzzy-mode').value, // off | loose | aggressive
+      };
+
+      const mainObjs = state.main.rows ? rowsToObjects(state.main.rows) : [];
+      const onboardObjs = state.onboard.rows ? rowsToObjects(state.onboard.rows) : [];
+      const stripeObjs = state.stripe.rows ? rowsToObjects(state.stripe.rows) : [];
+
+      const mappedMain = projectMain(mainObjs, state.main.map);
+      const mappedOnboard = projectMain(onboardObjs, state.onboard.map);
+      const mappedStripe = projectStripe(stripeObjs, state.stripe.map);
+
+      // mark onboarding as new
+      const onboardingKeys = new Set(mappedOnboard.map(x => compositeKey(x, cfg)));
+
+      // merge main + onboarding (de-dup by composite key) & carry platform list
+      const combinedByKey = new Map();
+      [...mappedMain, ...mappedOnboard].forEach(rec => {
+        const key = compositeKey(rec, cfg);
+        if (!combinedByKey.has(key)) {
+          combinedByKey.set(key, { ...rec, platforms: new Set(), isNew: onboardingKeys.has(key) });
         }
-      }
-      // dedup keep order
-      return out.filter((v, i, a) => a.indexOf(v) === i);
-    }
-
-    function activeFlag(val, headerEcho){
-      if(val == null) return false;
-      const s = String(val).trim();
-      if(!s) return false;
-      if(headerEcho && s.toLowerCase() === headerEcho.toLowerCase()) return false;
-      if(['false','no','0'].includes(s.toLowerCase())) return false;
-      return true;
-    }
-
-    function servicesFromRow(row){
-      const svcCols = {
-        Facebook: 'Facebook Service',
-        TikTok: 'TikTok',
-        YouTube: 'Youtube Service',
-        Posts: 'Organic Post Service',
-      };
-      const out = [];
-      for(const [svc, col] of Object.entries(svcCols)){
-        if(col in row && activeFlag(row[col], col)) out.push(svc);
-      }
-      return out;
-    }
-
-    function clientNameFromMondayRow(row){
-      if('Client Name' in row && String(row['Client Name']).trim() !== '') return String(row['Client Name']).trim();
-      if('Name' in row){ return String(row['Name']).replace(/^Main\\s*-\\s*/i, '').trim(); }
-      return '';
-    }
-
-    function normalizeMondayActive(objs){
-      return objs.map(row => {
-        const clientName = clientNameFromMondayRow(row);
-        return {
-          stage: 'Active',
-          client_name: clientName,
-          client_key: normalize(clientName),
-          email: (row['Email'] || '').toString().trim().toLowerCase(),
-          stripe_id: (row['Stripe ID'] || '').toString().trim().toLowerCase(),
-          services: servicesFromRow(row),
-          fb_ams: pickAssignedAll(row['FB AM'], ROSTERS.FB),
-          tt_ams: pickAssignedAll(row['TT AM'], ROSTERS.TT),
-          yt_ams: pickAssignedAll(row['YT AM'], ROSTERS.YT),
-          smms:   pickAssignedAll(row['SMM'],   ROSTERS.SMM),
-        };
-      }).filter(r => r.client_key && !['client name','name','stripe id'].includes(r.client_key));
-    }
-
-    function normalizeMondayOnboarding(objs){
-      return objs.map(row => {
-        const clientName = clientNameFromMondayRow(row);
-        return {
-          stage: 'Onboarding',
-          client_name: clientName,
-          client_key: normalize(clientName),
-          email: (row['Email'] || '').toString().trim().toLowerCase(),
-          stripe_id: '',
-          services: servicesFromRow(row),
-        };
-      }).filter(r => r.client_key && !['client name','name','stripe id'].includes(r.client_key));
-    }
-
-    function extractStripeCustomerId(obj){
-      const direct = obj['Customer ID'] || obj['Customer Id'] || obj['Customer'] || obj['customer_id'] || obj['customer'];
-      const tryStr = (v) => {
-        if(!v) return '';
-        const m = String(v).match(/cus_[a-z0-9]+/i);
-        return m ? m[0].toLowerCase() : '';
-      };
-      let id = tryStr(direct);
-      if(id) return id;
-      for(const v of Object.values(obj)){
-        const m = tryStr(v);
-        if(m) return m;
-      }
-      return '';
-    }
-
-    function normalizeStripe(stripeObjs){
-      return stripeObjs.map(row => {
-        const status = (row['Status'] || '').toString().toLowerCase();
-        const isPaid = ['paid','succeeded','success','captured','complete','completed','true'].some(w => status.includes(w));
-        const custName = (row['Customer Description'] || '').toString();
-        const custEmail = (row['Customer Email'] || '').toString().trim().toLowerCase();
-        const customerId = extractStripeCustomerId(row);
-        return {
-          charge_id: row['id'] || row['charge_id'] || row['Charge ID'] || '',
-          created_utc: row['Created date (UTC)'] || row['created_utc'] || row['Created'] || '',
-          amount: toFloat(row['Amount']),
-          currency: row['Currency'] || row['currency'] || 'usd',
-          status: row['Status'] || '',
-          is_paid: isPaid,
-          customer_name: custName,
-          customer_email: custEmail,
-          customer_id: customerId,
-          client_key: normalize(custName),
-        };
+        const acc = combinedByKey.get(key);
+        if (rec.platform) acc.platforms.add(rec.platform);
+        // Prefer AM if missing previously
+        if (!acc.am && rec.am) acc.am = rec.am;
+        // Prefer name/email/id when missing
+        if (!acc.clientName && rec.clientName) acc.clientName = rec.clientName;
+        if (!acc.email && rec.email) acc.email = rec.email;
+        if (!acc.stripeId && rec.stripeId) acc.stripeId = rec.stripeId;
+        // If appears in onboarding, mark new
+        if (onboardingKeys.has(key)) acc.isNew = true;
       });
-    }
 
-    function buildIndexes(active, onboarding){
-      const byStripeId = new Map(); // Active only (Stripe ID lives there)
-      const byEmail = new Map();    // prefer Active; fallback Onboarding
-      const byClientKey = new Map();// prefer Active; fallback Onboarding
-      for(const r of active){
-        if(r.stripe_id) byStripeId.set(r.stripe_id, r);
-        if(r.email && !byEmail.has(r.email)) byEmail.set(r.email, r);
-        if(r.client_key && !byClientKey.has(r.client_key)) byClientKey.set(r.client_key, r);
-      }
-      for(const r of onboarding){
-        if(r.email && !byEmail.has(r.email)) byEmail.set(r.email, r);
-        if(r.client_key && !byClientKey.has(r.client_key)) byClientKey.set(r.client_key, r);
-      }
-      return { byStripeId, byEmail, byClientKey };
-    }
+      // Index Stripe by id/email/name; pre-aggregate amount per customer key
+      const stripeAgg = aggregateStripe(mappedStripe, cfg);
 
-    function fuzzyGuessClientKey(sKey, byClientKey){
-      if(!sKey) return null;
-      const t = tokens(sKey);
-      if(t.size === 0) return null;
-      let bestKey = null, bestScore = 0;
-      for(const [key] of byClientKey.entries()){
-        const tk = tokens(key);
-        const inter = [...t].filter(x => tk.has(x)).length;
-        const score = inter / Math.max(t.size, tk.size);
-        if(score > bestScore){ bestScore = score; bestKey = key; }
-      }
-      return bestScore >= 0.5 ? bestKey : null;
-    }
-
-    function computePaidTotals(clientMap, matchedRows){
-      const totals = new Map(); // client_key -> {sum, count, first, last}
-      for(const r of matchedRows){
-        if(!clientMap.has(r.client_key)) continue; // only attribute to known clients
-        const amt = Number(r.amount || 0);
-        const dt = r.created_utc ? new Date(r.created_utc) : null;
-        if(!totals.has(r.client_key)){ totals.set(r.client_key, { sum: 0, count: 0, first: null, last: null }); }
-        const e = totals.get(r.client_key);
-        if(!isNaN(amt)) e.sum += amt;
-        e.count += 1;
-        if(dt && !isNaN(dt)){
-          if(!e.first || dt < e.first) e.first = dt;
-          if(!e.last  || dt > e.last)  e.last  = dt;
-        }
-      }
-      return totals;
-    }
-
-    // Build per-person lists for a given platform; make sure EVERY roster person appears
-    function buildPerPerson(activeList, paidTotals, platformKey, rosterNames, onboardingSet){
-      const per = new Map();
-      // seed empty lists so everyone shows up
-      for(const name of rosterNames){ per.set(name, []); }
-
-      for(const a of activeList){
-        const svcs = a.services || [];
-        const hasSvc =
-          platformKey === 'Facebook' ? svcs.includes('Facebook') :
-          platformKey === 'TikTok'   ? svcs.includes('TikTok')   :
-          platformKey === 'YouTube'  ? svcs.includes('YouTube')  :
-          platformKey === 'Posts'    ? svcs.includes('Posts')    : false;
-        if(!hasSvc) continue;
-
-        let people = [];
-        if(platformKey === 'Facebook') people = a.fb_ams || [];
-        if(platformKey === 'TikTok')   people = a.tt_ams || [];
-        if(platformKey === 'YouTube')  people = a.yt_ams || [];
-        if(platformKey === 'Posts')    people = a.smms   || [];
-        if(people.length === 0) continue;
-
-        const tot = paidTotals.get(a.client_key);
-        const revenue = tot ? tot.sum : 0;
-        const txCount = tot ? tot.count : 0;
-        const first = tot && tot.first ? tot.first.toISOString() : '';
-        const last  = tot && tot.last  ? tot.last.toISOString()  : '';
-        const stage = onboardingSet.has(a.client_key) ? 'Onboarding' : 'Active';
-
-        for(const person of people){
-          if(!per.has(person)) per.set(person, []); // in case roster changed
-          per.get(person).push({
-            Person: person,
-            Client: a.client_name,
-            Email: a.email || '',
-            Stripe_ID: a.stripe_id || '',
-            Stage: stage,
-            Services: svcs.join('; '),
-            Revenue_Paid: revenue > 0 ? revenue.toFixed(2) : 'Not paid',
-            Revenue_Paid_Value: revenue,
-            Paid_Txns: txCount,
-            First_Paid_Date: first,
-            Last_Paid_Date: last
-          });
-        }
-      }
-
-      // sort each person's list by client name
-      for(const [p, rows] of per.entries()){
-        rows.sort((x,y)=> x.Client.localeCompare(y.Client));
-      }
-      return per;
-    }
-
-    function renderPerPerson(mapPersonRows, wrapSel){
-      const wrap = document.querySelector(wrapSel);
-      wrap.innerHTML = '';
-      for(const [person, rows] of Array.from(mapPersonRows.entries()).sort((a,b)=> a[0].localeCompare(b[0]))){
-        const box = document.createElement('div');
-        box.className = 'personBox';
-        const h = document.createElement('h4');
-        h.textContent = person;
-        box.appendChild(h);
-
-        const total = rows.reduce((acc, r) => acc + (Number(r.Revenue_Paid_Value)||0), 0);
-        const paidClients = rows.filter(r => (Number(r.Revenue_Paid_Value)||0) > 0).length;
-        const totalsP = document.createElement('div');
-        totalsP.className = 'totals';
-        totalsP.innerHTML = `<strong>Total Paid Revenue:</strong> ${fmt(total)}  •  <strong>Clients:</strong> ${rows.length}  •  <strong>Clients Paid:</strong> ${paidClients}`;
-        box.appendChild(totalsP);
-
-        const visibleHeaders = ["Person","Client","Email","Stripe_ID","Stage","Services","Revenue_Paid","Paid_Txns","First_Paid_Date","Last_Paid_Date"];
-        const thead = '<thead><tr>'+visibleHeaders.map(h=>`<th>${h}</th>`).join('')+'</tr></thead>';
-        const tbody = '<tbody>' + rows.map(r =>
-          '<tr>'+visibleHeaders.map(h=>`<td>${r[h] ?? ''}</td>`).join('')+'</tr>'
-        ).join('') + '</tbody>';
-        const tbl = document.createElement('table');
-        tbl.innerHTML = thead + tbody;
-        box.appendChild(tbl);
-
-        wrap.appendChild(box);
-      }
-      if(mapPersonRows.size === 0){ wrap.innerHTML = '<p class="muted">No data.</p>'; }
-    }
-
-    function flattenPerPersonForCsv(mapPersonRows){
-      const out = [];
-      for(const [person, rows] of mapPersonRows.entries()){
-        const total = rows.reduce((acc, r) => acc + (Number(r.Revenue_Paid_Value)||0), 0);
-        out.push({Person: person, Client:'—TOTAL—', Email:'', Stripe_ID:'', Stage:'', Services:'', Revenue_Paid: total.toFixed(2), Paid_Txns:'', First_Paid_Date:'', Last_Paid_Date:''});
-        for(const r of rows){
-          const { Revenue_Paid_Value, ...rest } = r;
-          out.push(rest);
-        }
-      }
-      // stable order: Person asc, keep total first per person
-      out.sort((a,b)=> (a.Person||'').localeCompare(b.Person||'') || ((a.Client==='—TOTAL—')? -1 : 0));
-      return out;
-    }
-
-    function buildOnboardingSummary(onboardingList, paidTotals){
-      // one row per onboarding client
-      const rows = onboardingList.map(o => {
-        const tot = paidTotals.get(o.client_key);
-        const revenue = tot ? tot.sum : 0;
-        const txCount = tot ? tot.count : 0;
-        const first = tot && tot.first ? tot.first.toISOString() : '';
-        const last  = tot && tot.last  ? tot.last.toISOString()  : '';
-        return {
-          Client: o.client_name,
-          Email: o.email || '',
-          Stripe_ID: o.stripe_id || '',
-          Stage: 'Onboarding',
-          Services: (o.services||[]).join('; '),
-          Revenue_Paid: revenue > 0 ? revenue.toFixed(2) : 'Not paid',
-          Revenue_Paid_Value: revenue,
-          Paid_Txns: txCount,
-          First_Paid_Date: first,
-          Last_Paid_Date: last
-        };
-      }).sort((a,b)=> a.Client.localeCompare(b.Client));
-      const total = rows.reduce((acc, r)=> acc + (Number(r.Revenue_Paid_Value)||0), 0);
-      return { rows, total };
-    }
-
-    function renderOnboardingSummary(summary, wrapSel){
-      const wrap = document.querySelector(wrapSel);
-      wrap.innerHTML = '';
-      const { rows, total } = summary || { rows: [], total: 0 };
-      const line = document.createElement('div');
-      line.className = 'sumline';
-      line.innerHTML = `<strong>Total Paid Revenue (Onboarding):</strong> ${fmt(total)}  •  <strong>Clients:</strong> ${rows.length}`;
-      wrap.appendChild(line);
-
-      if(rows.length === 0){ wrap.insertAdjacentHTML('beforeend','<p class="muted">No onboarding clients found.</p>'); return; }
-
-      const headers = Object.keys(rows[0]).filter(h => h !== 'Revenue_Paid_Value');
-      let html = '<div style="overflow:auto"><table><thead><tr>' +
-        headers.map(h => `<th>${h}</th>`).join('') +
-        '</tr></thead><tbody>';
-      html += rows.map(r => '<tr>' + headers.map(h => `<td>${r[h] ?? ''}</td>`).join('') + '</tr>').join('');
-      html += '</tbody></table></div>';
-      wrap.insertAdjacentHTML('beforeend', html);
-    }
-
-    function flattenOnboardingForCsv(summary){
-      const { rows, total } = summary || { rows: [], total: 0 };
-      return [{Client:'—TOTAL—', Email:'', Stripe_ID:'', Stage:'Onboarding', Services:'', Revenue_Paid: total.toFixed(2), Paid_Txns:'', First_Paid_Date:'', Last_Paid_Date:''}]
-             .concat(rows.map(({Revenue_Paid_Value, ...rest}) => rest));
-    }
-
-    async function run(){
-      logEl.textContent = '';
-      const mondayActiveFile = $('#mondayActive').files[0];
-      const mondayOnboardingFile = $('#mondayOnboarding').files[0];
-      const stripeFile = $('#stripeCsv').files[0];
-      if(!mondayActiveFile || !mondayOnboardingFile || !stripeFile){
-        alert('Please select all 3 CSV files.'); return;
-      }
-
-      appendLog('Parsing Monday Active...');
-      const activeRaw = await csvToObjectsWithHeaderGuess(mondayActiveFile);
-      appendLog(`  Active rows: ${activeRaw.length}`);
-
-      appendLog('Parsing Monday Onboarding (new clients)...');
-      const onRaw = await csvToObjectsWithHeaderGuess(mondayOnboardingFile);
-      appendLog(`  Onboarding rows: ${onRaw.length}`);
-
-      appendLog('Parsing Stripe...');
-      const stripeRaw = await csvToObjectsWithHeaderGuess(stripeFile);
-      appendLog(`  Stripe rows: ${stripeRaw.length}`);
-
-      // Normalize
-      const mondayActive = normalizeMondayActive(activeRaw);
-      const mondayOn     = normalizeMondayOnboarding(onRaw);
-      const stripeAll    = normalizeStripe(stripeRaw);
-      const stripePaid   = stripeAll.filter(r => r.is_paid);
-      appendLog(`Stripe paid transactions kept: ${stripePaid.length}`);
-
-      // Build indexes
-      const { byStripeId, byEmail, byClientKey } = buildIndexes(mondayActive, mondayOn);
-      // Map of ALL known clients (active or onboarding) for totals
-      const clientsAll = new Map();
-      mondayOn.forEach(r => clientsAll.set(r.client_key, r));
-      mondayActive.forEach(r => clientsAll.set(r.client_key, r));
-      const onboardingSet = new Set(mondayOn.map(r => r.client_key));
-
-      // Match Stripe → Monday
+      // Perform matching for each combined client
       const matched = [];
       const unmatched = [];
-      for(const t of stripePaid){
-        let m = null;
-        if(t.customer_id && byStripeId.has(t.customer_id)){
-          m = byStripeId.get(t.customer_id);
-        } else if(t.customer_email && byEmail.has(t.customer_email)){
-          m = byEmail.get(t.customer_email);
-        } else if(t.client_key && byClientKey.has(t.client_key)){
-          m = byClientKey.get(t.client_key);
-        } else {
-          const guess = fuzzyGuessClientKey(t.client_key, byClientKey);
-          if(guess && byClientKey.has(guess)) m = byClientKey.get(guess);
-        }
-        if(m){
+
+      combinedByKey.forEach(client => {
+        const match = findStripeMatch(client, stripeAgg, cfg);
+        if (match) {
           matched.push({
-            client_key: m.client_key,
-            amount: t.amount || 0,
-            created_utc: t.created_utc || ''
+            ...client,
+            platforms: Array.from(client.platforms),
+            amount: match.amount,
+            stripeId: match.stripeId || client.stripeId,
+            email: match.email || client.email,
+            clientName: client.clientName || match.clientName,
+            matchedOn: match.matchType,
           });
         } else {
-          unmatched.push(t);
+          unmatched.push({ ...client, platforms: Array.from(client.platforms) });
         }
-      }
-      appendLog(`Matched paid Stripe → Monday: ${matched.length}`);
-      appendLog(`Unmatched paid Stripe: ${unmatched.length}`);
+      });
 
-      // Totals per client (Active or Onboarding)
-      const paidTotals = computePaidTotals(clientsAll, matched);
+      // Summaries
+      const byPerson = summarizeByPerson(matched, unmatched, cfg);
+      const byPlatform = summarizeByPlatform(matched, unmatched, cfg);
 
-      // Build per-person maps (ACTIVE assignments only; Onboarding has no assignments)
-      const fbPer = buildPerPerson(mondayActive, paidTotals, 'Facebook', ROSTERS.FB, onboardingSet);
-      const ttPer = buildPerPerson(mondayActive, paidTotals, 'TikTok',   ROSTERS.TT, onboardingSet);
-      const ytPer = buildPerPerson(mondayActive, paidTotals, 'YouTube',  ROSTERS.YT, onboardingSet);
-      const smmPer= buildPerPerson(mondayActive, paidTotals, 'Posts',    ROSTERS.SMM, onboardingSet);
+      state.results = { matched, unmatched, byPerson, byPlatform, cfg };
 
-      // Render
-      renderPerPerson(fbPer,  '#fbWrap');
-      renderPerPerson(ttPer,  '#ttWrap');
-      renderPerPerson(ytPer,  '#ytWrap');
-      renderPerPerson(smmPer, '#smmWrap');
+      renderPerson(byPerson, cfg);
+      renderPlatform(byPlatform, cfg);
+      renderUnmatched(unmatched);
+      renderRaw(matched);
 
-      // Onboarding summary (new clients)
-      const onbSummary = buildOnboardingSummary(mondayOn, paidTotals);
-      renderOnboardingSummary(onbSummary, '#onbWrap');
+      // stats
+      const totalAmount = matched.reduce((s,x)=> s + (x.amount||0), 0);
+      runStats.innerHTML = `Matched <strong>${matched.length}</strong> client(s). Unmatched <strong>${unmatched.length}</strong>. Total paid <strong>${fmtCurrency(totalAmount, cfg.currency)}</strong>.`;
 
-      // Downloads
-      const fbCsv  = flattenPerPersonForCsv(fbPer);
-      const ttCsv  = flattenPerPersonForCsv(ttPer);
-      const ytCsv  = flattenPerPersonForCsv(ytPer);
-      const smmCsv = flattenPerPersonForCsv(smmPer);
-      const onbCsv = flattenOnboardingForCsv(onbSummary);
+      // enable exports
+      document.getElementById('btn-export-person').disabled = false;
+      document.getElementById('btn-export-platform').disabled = false;
+      document.getElementById('btn-export-unmatched').disabled = false;
+    });
 
-      $('#dlFB').disabled = fbCsv.length === 0;
-      $('#dlTT').disabled = ttCsv.length === 0;
-      $('#dlYT').disabled = ytCsv.length === 0;
-      $('#dlSMM').disabled = smmCsv.length === 0;
-      $('#dlOnb').disabled = onbCsv.length === 0;
-      $('#dlUnmatched').disabled = unmatched.length === 0;
+    function normalizeEmail(e){ if (!e) return ''; return (document.getElementById('email-normalize').value === 'yes') ? (''+e).trim().toLowerCase() : (''+e).trim(); }
 
-      $('#dlFB').onclick  = () => downloadCSV('facebook_ams_per_person.csv', fbCsv);
-      $('#dlTT').onclick  = () => downloadCSV('tiktok_ams_per_person.csv', ttCsv);
-      $('#dlYT').onclick  = () => downloadCSV('youtube_ams_per_person.csv', ytCsv);
-      $('#dlSMM').onclick = () => downloadCSV('smm_per_person.csv', smmCsv);
-      $('#dlOnb').onclick = () => downloadCSV('onboarding_summary.csv', onbCsv);
-      $('#dlUnmatched').onclick = () => downloadCSV('unmatched_paid_stripe_rows.csv', unmatched);
+    function normalizeName(n){ return (''+ (n||'')).trim().replace(/\s+/g,' ').toLowerCase(); }
 
-      appendLog('Done.');
+    function compositeKey(obj, cfg){
+      const id = (obj.stripeId||'').trim();
+      const email = normalizeEmail(obj.email);
+      const name = normalizeName(obj.clientName);
+      return `${id}|${email}|${name}`;
     }
 
-    function downloadCSV(filename, rows){
-      const csv = Papa.unparse(rows);
-      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+    function projectMain(rows, map){
+      return rows.map(r => ({
+        clientName: pick(r, map.clientName),
+        email: pick(r, map.email),
+        stripeId: pick(r, map.stripeId),
+        am: pick(r, map.am),
+        platform: normalizePlatform(pick(r, map.platform)),
+      })).filter(x => x.clientName || x.email || x.stripeId);
+    }
+
+    function projectStripe(rows, map){
+      return rows.map(r => ({
+        stripeId: pick(r, map.stripeId),
+        clientName: pick(r, map.clientName),
+        email: pick(r, map.email),
+        amount: parseAmount(pick(r, map.amount)),
+      })).filter(x => x.stripeId || x.email || x.clientName);
+    }
+
+    function pick(row, key){ return key ? (row[key] ?? '').toString() : ''; }
+
+    function parseAmount(v){
+      if (v == null) return 0;
+      if (typeof v === 'number') return v;
+      const s = (''+v).replace(/[^0-9.,-]/g,'').replace(/,/g,'');
+      const n = parseFloat(s);
+      return isNaN(n) ? 0 : n;
+    }
+
+    function normalizePlatform(p){
+      if (!p) return '';
+      const s = (''+p).trim().toLowerCase();
+      if (/(facebook|meta)/.test(s)) return 'Facebook';
+      if (/tiktok|tt/.test(s)) return 'TikTok';
+      if (/(youtube|yt)/.test(s)) return 'YouTube';
+      if (/(smm|social\s*media)/.test(s)) return 'SMM';
+      if (/(csm|success|client\s*success)/.test(s)) return 'CSM';
+      return capitalizeWords(s);
+    }
+
+    function capitalizeWords(s){ return (s||'').replace(/\b\w/g, c => c.toUpperCase()); }
+
+    // Aggregate Stripe amounts by best available key
+    function aggregateStripe(list, cfg){
+      const byId = new Map();
+      const byEmail = new Map();
+      const byName = new Map();
+      list.forEach(x => {
+        const keyId = (x.stripeId||'').trim();
+        const keyEmail = normalizeEmail(x.email);
+        const keyName = normalizeName(x.clientName);
+        // Use same object reference if exists, else create
+        const obj = byId.get(keyId) || byEmail.get(keyEmail) || byName.get(keyName) || { amount: 0, clientName: x.clientName, email: x.email, stripeId: x.stripeId };
+        obj.amount += x.amount || 0;
+        obj.clientName = obj.clientName || x.clientName;
+        obj.email = obj.email || x.email;
+        obj.stripeId = obj.stripeId || x.stripeId;
+        if (keyId) byId.set(keyId, obj);
+        if (keyEmail) byEmail.set(keyEmail, obj);
+        if (keyName) byName.set(keyName, obj);
+      });
+      return { byId, byEmail, byName };
+    }
+
+    function findStripeMatch(client, stripeAgg, cfg){
+      // Priority: ID → Email → Name (normalized) → Fuzzy Name
+      const idKey = (client.stripeId||'').trim();
+      if (idKey && stripeAgg.byId.has(idKey)) return { ...stripeAgg.byId.get(idKey), matchType: 'Customer ID' };
+      const emailKey = normalizeEmail(client.email);
+      if (emailKey && stripeAgg.byEmail.has(emailKey)) return { ...stripeAgg.byEmail.get(emailKey), matchType: 'Email' };
+      const nameKey = normalizeName(client.clientName);
+      if (nameKey && stripeAgg.byName.has(nameKey)) return { ...stripeAgg.byName.get(nameKey), matchType: 'Name (normalized)' };
+      if (cfg.fuzzyMode !== 'off' && nameKey) {
+        const candidates = Array.from(stripeAgg.byName.keys());
+        let best = null; let bestScore = 0;
+        for (const cand of candidates) {
+          const score = similarity(nameKey, cand);
+          if (score > bestScore) { bestScore = score; best = cand; }
+        }
+        const minScore = (cfg.fuzzyMode === 'aggressive') ? 0.72 : 0.82; // 0..1
+        if (best && bestScore >= minScore) {
+          return { ...stripeAgg.byName.get(best), matchType: `Name (fuzzy ${Math.round(bestScore*100)}%)` };
+        }
+      }
+      return null;
+    }
+
+    // Jaro-Winkler-ish similarity (lightweight)
+    function similarity(a, b){
+      if (!a || !b) return 0;
+      if (a === b) return 1;
+      // Token set ratio flavor: tokenize & compare sets first
+      const sa = new Set(a.split(/\s+/));
+      const sb = new Set(b.split(/\s+/));
+      const inter = [...sa].filter(x => sb.has(x)).length;
+      const union = new Set([...sa, ...sb]).size;
+      const tokenScore = inter / union; // 0..1
+      // char overlap
+      const ca = new Set(a);
+      const cb = new Set(b);
+      const interC = [...ca].filter(x => cb.has(x)).length;
+      const charScore = interC / Math.max(ca.size, cb.size);
+      return 0.6*tokenScore + 0.4*charScore;
+    }
+
+    /*****************
+     * Summarization *
+     *****************/
+    function locateTeamFor(am){
+      for (const [team, members] of Object.entries(TEAMS)) {
+        if (members.some(m => sameName(m, am))) return team;
+      }
+      return 'Other';
+    }
+
+    function sameName(a,b){ return normalizeName(a) === normalizeName(b); }
+
+    function summarizeByPerson(matched, unmatched, cfg){
+      const people = new Map();
+      function ensure(am){ if (!people.has(am)) people.set(am, { team: locateTeamFor(am), clients: [], unmatched: [], total: 0 }); return people.get(am); }
+
+      // Matched
+      matched.forEach(m => {
+        const am = m.am || 'Unassigned';
+        const p = ensure(am);
+        p.clients.push(m);
+        p.total += (m.amount || 0);
+      });
+
+      // Unmatched but still assigned to an AM
+      unmatched.forEach(u => {
+        const am = u.am || 'Unassigned';
+        const p = ensure(am);
+        p.unmatched.push(u);
+      });
+
+      // sort by team then name
+      return Array.from(people.entries()).map(([am, data]) => ({ am, ...data }))
+        .sort((a,b) => a.team.localeCompare(b.team) || a.am.localeCompare(b.am));
+    }
+
+    function summarizeByPlatform(matched, unmatched, cfg){
+      const byPlat = new Map();
+      function ensure(plat){ if (!byPlat.has(plat)) byPlat.set(plat, { clients: [], unmatched: [], total: 0 }); return byPlat.get(plat); }
+
+      const knownPlats = new Set(['Facebook','TikTok','YouTube','SMM','CSM']);
+
+      matched.forEach(m => {
+        const plats = m.platforms && m.platforms.length ? m.platforms : ['Other'];
+        const unique = Array.from(new Set(plats));
+        unique.forEach(p => {
+          const key = knownPlats.has(p) ? p : 'Other';
+          const bucket = ensure(key);
+          bucket.clients.push(m);
+          bucket.total += (m.amount||0);
+        });
+      });
+
+      unmatched.forEach(u => {
+        const plats = u.platforms && u.platforms.length ? u.platforms : ['Other'];
+        const unique = Array.from(new Set(plats));
+        unique.forEach(p => {
+          const key = knownPlats.has(p) ? p : 'Other';
+          const bucket = ensure(key);
+          bucket.unmatched.push(u);
+        });
+      });
+
+      return Array.from(byPlat.entries()).map(([platform, data]) => ({ platform, ...data }))
+        .sort((a,b) => a.platform.localeCompare(b.platform));
+    }
+
+    /**********
+     * Render *
+     **********/
+    function renderPerson(list, cfg){
+      const root = document.getElementById('view-person');
+      if (!list || !list.length) { root.innerHTML = '<div class="hint">No results yet.</div>'; return; }
+
+      // group by team
+      const byTeam = new Map();
+      list.forEach(x => {
+        const t = x.team || 'Other';
+        if (!byTeam.has(t)) byTeam.set(t, []);
+        byTeam.get(t).push(x);
+      });
+
+      let html = '';
+      const teamOrder = ['Facebook','TikTok','YouTube','SMM','CSM','Other','Unassigned'];
+
+      Array.from(byTeam.entries()).sort((a,b)=> teamOrder.indexOf(a[0]) - teamOrder.indexOf(b[0])).forEach(([team, arr]) => {
+        const teamTotal = arr.reduce((s,p)=> s + p.total, 0);
+        html += `<details open>
+          <summary>
+            <div class="summary-row">
+              <div><span class="tag ${teamTagCls(team)}">${team}</span> • ${arr.length} person(s)</div>
+              <div class="badge">Total: ${fmtCurrency(teamTotal, cfg.currency)}</div>
+            </div>
+          </summary>
+          <div style="padding:8px 2px 2px">`;
+
+        arr.forEach(p => {
+          const total = p.total;
+          html += `<details>
+            <summary>
+              <div class="summary-row">
+                <div><strong>${encodeHtml(p.am)}</strong> <span class="hint">(${p.clients.length} matched, ${p.unmatched.length} unmatched)</span></div>
+                <div class="badge">${fmtCurrency(total, cfg.currency)}</div>
+              </div>
+            </summary>
+            <div style="overflow:auto">
+              ${tableClients(p.clients, cfg)}
+              ${p.unmatched.length ? `<div class="hint" style="margin-top:8px">Unmatched assigned to ${encodeHtml(p.am)} (${p.unmatched.length}):</div>` : ''}
+              ${p.unmatched.length ? tableClients(p.unmatched, cfg, true) : ''}
+            </div>
+          </details>`;
+        });
+
+        html += `</div></details>`;
+      });
+
+      root.innerHTML = html;
+    }
+
+    function renderPlatform(list, cfg){
+      const root = document.getElementById('view-platform');
+      if (!list || !list.length) { root.innerHTML = '<div class="hint">No results yet.</div>'; return; }
+
+      let html = '';
+      list.forEach(x => {
+        const total = x.total;
+        html += `<details>
+          <summary>
+            <div class="summary-row">
+              <div>${platformTag(x.platform)} <span class="hint">(${x.clients.length} matched, ${x.unmatched.length} unmatched)</span></div>
+              <div class="badge">${fmtCurrency(total, cfg.currency)}</div>
+            </div>
+          </summary>
+          <div style="overflow:auto">
+            ${tableClients(x.clients, cfg)}
+            ${x.unmatched.length ? `<div class="hint" style="margin-top:8px">Unmatched on ${encodeHtml(x.platform)} (${x.unmatched.length}):</div>` : ''}
+            ${x.unmatched.length ? tableClients(x.unmatched, cfg, true) : ''}
+          </div>
+        </details>`;
+      });
+
+      root.innerHTML = html;
+    }
+
+    function renderUnmatched(unmatched){
+      const root = document.getElementById('view-unmatched');
+      if (!unmatched || !unmatched.length) { root.innerHTML = '<div class="hint">All set—no unmatched clients. 🎉</div>'; return; }
+      root.innerHTML = tableClients(unmatched, { currency: '' }, true);
+    }
+
+    function renderRaw(list){
+      const root = document.getElementById('view-raw');
+      if (!list || !list.length) { root.innerHTML = '<div class="hint">No matches yet.</div>'; return; }
+      const rows = list.map(x => ({
+        AM: x.am || 'Unassigned',
+        Client: x.clientName || '',
+        Email: x.email || '',
+        StripeID: x.stripeId || '',
+        Platforms: (x.platforms||[]).join(', '),
+        New: x.isNew ? 'Yes' : 'No',
+        MultiPlatform: (x.platforms||[]).length > 1 ? 'Yes' : 'No',
+        Amount: x.amount || 0,
+        MatchedOn: x.matchedOn || '',
+      }));
+      root.innerHTML = tableFromObjects(rows);
+    }
+
+    function teamTagCls(team){
+      const t = (team||'').toLowerCase();
+      if (t==='facebook') return 'fb';
+      if (t==='tiktok') return 'tt';
+      if (t==='youtube') return 'yt';
+      if (t==='smm') return 'smm';
+      if (t==='csm') return 'csm';
+      return '';
+    }
+
+    function platformTag(p){
+      const cls = teamTagCls(p);
+      return `<span class="tag ${cls}">${encodeHtml(p)}</span>`;
+    }
+
+    function tableClients(arr, cfg, showZero){
+      if (!arr || !arr.length) return '<div class="hint">None.</div>';
+      const rows = arr.map(x => {
+        const platforms = (x.platforms||[]).join(', ');
+        const multi = (x.platforms||[]).length > 1;
+        const amount = x.amount || 0;
+        const amtStr = amount ? fmtCurrency(amount, cfg.currency) : (showZero ? fmtCurrency(0, cfg.currency) : '—');
+        const pills = [ x.isNew ? '<span class="pill new">New</span>' : '', multi ? '<span class="pill multi">Multi‑Platform</span>' : '' ].filter(Boolean).join(' ');
+        return `<tr>
+          <td>${encodeHtml(x.am || 'Unassigned')}</td>
+          <td>${encodeHtml(x.clientName || '')} ${pills}</td>
+          <td>${encodeHtml(x.email || '')}</td>
+          <td>${encodeHtml(x.stripeId || '')}</td>
+          <td>${encodeHtml(platforms || '')}</td>
+          <td class="right">${amtStr}</td>
+        </tr>`;
+      }).join('');
+      return `<table>
+        <thead><tr><th>AM</th><th>Client</th><th>Email</th><th>Stripe ID</th><th>Platforms</th><th class="right">Amount Paid</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    }
+
+    function tableFromObjects(list){
+      if (!list.length) return '<div class="hint">No data.</div>';
+      const headers = Object.keys(list[0]);
+      const thead = '<tr>' + headers.map(h => `<th>${encodeHtml(h)}</th>`).join('') + '</tr>';
+      const tbody = list.map(obj => '<tr>' + headers.map(h => `<td>${encodeHtml(String(obj[h] ?? ''))}</td>`).join('') + '</tr>').join('');
+      return `<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+    }
+
+    function fmtCurrency(n, sym){
+      const sign = n < 0 ? '-' : '';
+      const v = Math.abs(n);
+      return `${sign}${sym}${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
+    /***********
+     * Export  *
+     ***********/
+    function toCSV(rows){
+      if (!rows.length) return '';
+      const headers = Object.keys(rows[0]);
+      const esc = v => '"' + (String(v ?? '').replace(/"/g,'""')) + '"';
+      const head = headers.map(esc).join(',');
+      const body = rows.map(r => headers.map(h => esc(r[h])).join(',')).join('\n');
+      return head + '\n' + body;
+    }
+
+    function download(filename, text){
+      const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = filename; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1500);
+      URL.revokeObjectURL(url);
     }
 
-    $('#go').addEventListener('click', run);
+    document.getElementById('btn-export-person').addEventListener('click', () => {
+      const res = state.results; if (!res) return;
+      const rows = [];
+      res.byPerson.forEach(p => {
+        (p.clients || []).forEach(c => rows.push({
+          Team: p.team,
+          AM: p.am,
+          Client: c.clientName || '',
+          Email: c.email || '',
+          StripeID: c.stripeId || '',
+          Platforms: (c.platforms||[]).join(', '),
+          New: c.isNew ? 'Yes' : 'No',
+          Amount: c.amount || 0,
+          MatchedOn: c.matchedOn || '',
+        }));
+        (p.unmatched || []).forEach(u => rows.push({
+          Team: p.team,
+          AM: p.am,
+          Client: u.clientName || '',
+          Email: u.email || '',
+          StripeID: u.stripeId || '',
+          Platforms: (u.platforms||[]).join(', '),
+          New: u.isNew ? 'Yes' : 'No',
+          Amount: 0,
+          MatchedOn: '—',
+        }));
+      });
+      download('summary_by_person.csv', toCSV(rows));
+    });
+
+    document.getElementById('btn-export-platform').addEventListener('click', () => {
+      const res = state.results; if (!res) return;
+      const rows = [];
+      res.byPlatform.forEach(p => {
+        (p.clients || []).forEach(c => rows.push({
+          Platform: p.platform,
+          AM: c.am || 'Unassigned',
+          Client: c.clientName || '',
+          Email: c.email || '',
+          StripeID: c.stripeId || '',
+          Platforms: (c.platforms||[]).join(', '),
+          New: c.isNew ? 'Yes' : 'No',
+          Amount: c.amount || 0,
+          MatchedOn: c.matchedOn || '',
+        }));
+        (p.unmatched || []).forEach(u => rows.push({
+          Platform: p.platform,
+          AM: u.am || 'Unassigned',
+          Client: u.clientName || '',
+          Email: u.email || '',
+          StripeID: u.stripeId || '',
+          Platforms: (u.platforms||[]).join(', '),
+          New: u.isNew ? 'Yes' : 'No',
+          Amount: 0,
+          MatchedOn: '—',
+        }));
+      });
+      download('summary_by_platform.csv', toCSV(rows));
+    });
+
+    document.getElementById('btn-export-unmatched').addEventListener('click', () => {
+      const res = state.results; if (!res) return;
+      const rows = (res.unmatched || []).map(u => ({
+        AM: u.am || 'Unassigned',
+        Client: u.clientName || '',
+        Email: u.email || '',
+        StripeID: u.stripeId || '',
+        Platforms: (u.platforms||[]).join(', '),
+        New: u.isNew ? 'Yes' : 'No',
+      }));
+      download('unmatched.csv', toCSV(rows));
+    });
+
+    /*********
+     * Tabs  *
+     *********/
+    document.querySelectorAll('.tabbar button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tabbar button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const tab = btn.getAttribute('data-tab');
+        document.getElementById('view-person').style.display = (tab==='person') ? '' : 'none';
+        document.getElementById('view-platform').style.display = (tab==='platform') ? '' : 'none';
+        document.getElementById('view-unmatched').style.display = (tab==='unmatched') ? '' : 'none';
+        document.getElementById('view-raw').style.display = (tab==='raw') ? '' : 'none';
+      });
+    });
   </script>
 </body>
 </html>
