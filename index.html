@@ -95,7 +95,7 @@
 <body>
   <header>
     <h1>Client ↔ Stripe Matcher</h1>
-    <div class="subtitle">Upload CSVs → Map columns → Match by <span class="kbd">Customer ID</span>, <span class="kbd">Email</span>, or <span class="kbd">Name</span> → Summaries per person & platform. New (Onboarding) flagged automatically.</div>
+    <div class="subtitle">Upload CSVs → Map columns → Match by <span class="kbd">Customer ID</span>, <span class="kbd">Email</span>, or <span class="kbd">Name</span> → Summaries per person & platform. <strong>If a team column contains multiple names, <em>each</em> matching AM gets credit for that client.</strong></div>
   </header>
 
   <main>
@@ -145,7 +145,7 @@
 
       <section class="card">
         <h2>2) Map Columns</h2>
-        <div class="hint">After uploading, pick which columns correspond to each field. (Don't worry—you only need to map what's present.)</div>
+        <div class="hint">After uploading, pick which columns correspond to each field. You can map per‑team columns with multiple names (comma/semicolon/"and" separated).</div>
 
         <div id="mapping-main"></div>
         <div id="mapping-onboard" style="margin-top:12px"></div>
@@ -169,6 +169,7 @@
           </div>
         </div>
         <div id="run-stats" class="hint" style="margin-top:8px"></div>
+        <div class="hint" style="margin-top:6px"><strong>Note:</strong> If a client is shared by multiple AMs or platforms, the amount appears under each relevant person/platform. (Totals can exceed the grand total due to shared credit.)</div>
       </section>
     </div>
 
@@ -216,8 +217,6 @@
       CSM: [
         "Kizzia",
         "Anthony Jenkins",
-        "Kizzia", // appears twice in prompt; kept as-is, we will de-duplicate later
-        "Anthony Jenkins", // appears twice in prompt; kept as-is, we will de-duplicate later
         "Rain G",
         "Sandra Catalina Mateus Abdala",
         "Shao",
@@ -316,8 +315,13 @@
       { key: 'clientName', label: 'Client Name' },
       { key: 'email', label: 'Email' },
       { key: 'stripeId', label: 'Customer/Stripe ID' },
-      { key: 'am', label: 'Assigned AM (person)' },
+      { key: 'am', label: 'Assigned AM (single column)' },
       { key: 'platform', label: 'Platform (Facebook/TikTok/YouTube/SMM/CSM)' },
+      { key: 'amFacebook', label: 'Facebook AMs (multiple names allowed)' },
+      { key: 'amTikTok', label: 'TikTok AMs (multiple names allowed)' },
+      { key: 'amYouTube', label: 'YouTube AMs (multiple names allowed)' },
+      { key: 'amSMM', label: 'SMM AMs (multiple names allowed)' },
+      { key: 'amCSM', label: 'CSM AMs (multiple names allowed)' },
     ];
 
     const STRIPE_FIELDS = [
@@ -409,23 +413,49 @@
       // mark onboarding as new
       const onboardingKeys = new Set(mappedOnboard.map(x => compositeKey(x, cfg)));
 
-      // merge main + onboarding (de-dup by composite key) & carry platform list
+      // merge main + onboarding (de-dup by composite key) & carry platform list + assignments
       const combinedByKey = new Map();
       [...mappedMain, ...mappedOnboard].forEach(rec => {
         const key = compositeKey(rec, cfg);
         if (!combinedByKey.has(key)) {
-          combinedByKey.set(key, { ...rec, platforms: new Set(), isNew: onboardingKeys.has(key) });
+          combinedByKey.set(key, { ...rec, platforms: new Set(), assignments: [], isNew: onboardingKeys.has(key) });
         }
         const acc = combinedByKey.get(key);
-        if (rec.platform) acc.platforms.add(rec.platform);
-        // Prefer AM if missing previously
-        if (!acc.am && rec.am) acc.am = rec.am;
-        // Prefer name/email/id when missing
+        // consolidate identity
         if (!acc.clientName && rec.clientName) acc.clientName = rec.clientName;
         if (!acc.email && rec.email) acc.email = rec.email;
         if (!acc.stripeId && rec.stripeId) acc.stripeId = rec.stripeId;
-        // If appears in onboarding, mark new
         if (onboardingKeys.has(key)) acc.isNew = true;
+
+        // build assignments from generic AM+platform
+        if (rec.am && rec.platform) {
+          acc.assignments.push({ am: rec.am, platform: rec.platform });
+          acc.platforms.add(rec.platform);
+        }
+        // build assignments from per-team columns (can contain multiple names)
+        const teamCols = [
+          ['Facebook', rec.amFacebook],
+          ['TikTok', rec.amTikTok],
+          ['YouTube', rec.amYouTube],
+          ['SMM', rec.amSMM],
+          ['CSM', rec.amCSM],
+        ];
+        teamCols.forEach(([plat, names]) => {
+          splitNames(names).forEach(nm => {
+            acc.assignments.push({ am: nm, platform: plat });
+            acc.platforms.add(plat);
+          });
+        });
+      });
+
+      // de-duplicate assignments per client
+      combinedByKey.forEach(acc => {
+        const uniq = new Map();
+        acc.assignments.forEach(a => {
+          const k = normalizeName(a.am) + '|' + a.platform;
+          if (!uniq.has(k)) uniq.set(k, a);
+        });
+        acc.assignments = Array.from(uniq.values());
       });
 
       // Index Stripe by id/email/name; pre-aggregate amount per customer key
@@ -437,10 +467,17 @@
 
       combinedByKey.forEach(client => {
         const match = findStripeMatch(client, stripeAgg, cfg);
+        const base = {
+          clientName: client.clientName,
+          email: client.email,
+          stripeId: client.stripeId,
+          platforms: Array.from(client.platforms),
+          assignments: client.assignments,
+          isNew: client.isNew,
+        };
         if (match) {
           matched.push({
-            ...client,
-            platforms: Array.from(client.platforms),
+            ...base,
             amount: match.amount,
             stripeId: match.stripeId || client.stripeId,
             email: match.email || client.email,
@@ -448,7 +485,7 @@
             matchedOn: match.matchType,
           });
         } else {
-          unmatched.push({ ...client, platforms: Array.from(client.platforms) });
+          unmatched.push(base);
         }
       });
 
@@ -473,6 +510,13 @@
       document.getElementById('btn-export-unmatched').disabled = false;
     });
 
+    function splitNames(raw){
+      if (!raw) return [];
+      // split by comma, semicolon, slash, ampersand, 'and', newline
+      const parts = String(raw).split(/[,;\/\n]|\s+&\s+|\s+and\s+/gi).map(s => s.trim()).filter(Boolean);
+      return parts;
+    }
+
     function normalizeEmail(e){ if (!e) return ''; return (document.getElementById('email-normalize').value === 'yes') ? (''+e).trim().toLowerCase() : (''+e).trim(); }
 
     function normalizeName(n){ return (''+ (n||'')).trim().replace(/\s+/g,' ').toLowerCase(); }
@@ -491,6 +535,11 @@
         stripeId: pick(r, map.stripeId),
         am: pick(r, map.am),
         platform: normalizePlatform(pick(r, map.platform)),
+        amFacebook: pick(r, map.amFacebook),
+        amTikTok: pick(r, map.amTikTok),
+        amYouTube: pick(r, map.amYouTube),
+        amSMM: pick(r, map.amSMM),
+        amCSM: pick(r, map.amCSM),
       })).filter(x => x.clientName || x.email || x.stripeId);
     }
 
@@ -605,24 +654,33 @@
       const people = new Map();
       function ensure(am){ if (!people.has(am)) people.set(am, { team: locateTeamFor(am), clients: [], unmatched: [], total: 0 }); return people.get(am); }
 
-      // Matched
+      // Matched → credit each AM whose name appears in the relevant team column(s)
       matched.forEach(m => {
-        const am = m.am || 'Unassigned';
-        const p = ensure(am);
-        p.clients.push(m);
-        p.total += (m.amount || 0);
+        const ams = uniqueAms(m.assignments);
+        ams.forEach(am => {
+          const p = ensure(am);
+          p.clients.push(m);
+          p.total += (m.amount || 0);
+        });
       });
 
       // Unmatched but still assigned to an AM
       unmatched.forEach(u => {
-        const am = u.am || 'Unassigned';
-        const p = ensure(am);
-        p.unmatched.push(u);
+        const ams = uniqueAms(u.assignments);
+        if (ams.length === 0) ams.push('Unassigned');
+        ams.forEach(am => {
+          const p = ensure(am);
+          p.unmatched.push(u);
+        });
       });
 
       // sort by team then name
       return Array.from(people.entries()).map(([am, data]) => ({ am, ...data }))
         .sort((a,b) => a.team.localeCompare(b.team) || a.am.localeCompare(b.am));
+    }
+
+    function uniqueAms(assignments){
+      return Array.from(new Set((assignments||[]).map(a => a.am).filter(Boolean)));
     }
 
     function summarizeByPlatform(matched, unmatched, cfg){
@@ -632,7 +690,7 @@
       const knownPlats = new Set(['Facebook','TikTok','YouTube','SMM','CSM']);
 
       matched.forEach(m => {
-        const plats = m.platforms && m.platforms.length ? m.platforms : ['Other'];
+        const plats = (m.platforms && m.platforms.length) ? m.platforms : ['Other'];
         const unique = Array.from(new Set(plats));
         unique.forEach(p => {
           const key = knownPlats.has(p) ? p : 'Other';
@@ -643,7 +701,7 @@
       });
 
       unmatched.forEach(u => {
-        const plats = u.platforms && u.platforms.length ? u.platforms : ['Other'];
+        const plats = (u.platforms && u.platforms.length) ? u.platforms : ['Other'];
         const unique = Array.from(new Set(plats));
         unique.forEach(p => {
           const key = knownPlats.has(p) ? p : 'Other';
@@ -743,7 +801,7 @@
       const root = document.getElementById('view-raw');
       if (!list || !list.length) { root.innerHTML = '<div class="hint">No matches yet.</div>'; return; }
       const rows = list.map(x => ({
-        AM: x.am || 'Unassigned',
+        AMs: uniqueAms(x.assignments).join(', '),
         Client: x.clientName || '',
         Email: x.email || '',
         StripeID: x.stripeId || '',
@@ -776,11 +834,12 @@
       const rows = arr.map(x => {
         const platforms = (x.platforms||[]).join(', ');
         const multi = (x.platforms||[]).length > 1;
+        const ams = uniqueAms(x.assignments).join(', ');
         const amount = x.amount || 0;
         const amtStr = amount ? fmtCurrency(amount, cfg.currency) : (showZero ? fmtCurrency(0, cfg.currency) : '—');
         const pills = [ x.isNew ? '<span class="pill new">New</span>' : '', multi ? '<span class="pill multi">Multi‑Platform</span>' : '' ].filter(Boolean).join(' ');
         return `<tr>
-          <td>${encodeHtml(x.am || 'Unassigned')}</td>
+          <td>${encodeHtml(ams || 'Unassigned')}</td>
           <td>${encodeHtml(x.clientName || '')} ${pills}</td>
           <td>${encodeHtml(x.email || '')}</td>
           <td>${encodeHtml(x.stripeId || '')}</td>
@@ -789,7 +848,7 @@
         </tr>`;
       }).join('');
       return `<table>
-        <thead><tr><th>AM</th><th>Client</th><th>Email</th><th>Stripe ID</th><th>Platforms</th><th class="right">Amount Paid</th></tr></thead>
+        <thead><tr><th>AM(s)</th><th>Client</th><th>Email</th><th>Stripe ID</th><th>Platforms</th><th class="right">Amount Paid</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     }
@@ -864,7 +923,7 @@
       res.byPlatform.forEach(p => {
         (p.clients || []).forEach(c => rows.push({
           Platform: p.platform,
-          AM: c.am || 'Unassigned',
+          AMs: uniqueAms(c.assignments).join(', '),
           Client: c.clientName || '',
           Email: c.email || '',
           StripeID: c.stripeId || '',
@@ -875,7 +934,7 @@
         }));
         (p.unmatched || []).forEach(u => rows.push({
           Platform: p.platform,
-          AM: u.am || 'Unassigned',
+          AMs: uniqueAms(u.assignments).join(', '),
           Client: u.clientName || '',
           Email: u.email || '',
           StripeID: u.stripeId || '',
@@ -891,7 +950,7 @@
     document.getElementById('btn-export-unmatched').addEventListener('click', () => {
       const res = state.results; if (!res) return;
       const rows = (res.unmatched || []).map(u => ({
-        AM: u.am || 'Unassigned',
+        AMs: uniqueAms(u.assignments).join(', ') || 'Unassigned',
         Client: u.clientName || '',
         Email: u.email || '',
         StripeID: u.stripeId || '',
