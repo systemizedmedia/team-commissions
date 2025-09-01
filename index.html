@@ -95,7 +95,7 @@
 <body>
   <header>
     <h1>Client ↔ Stripe Matcher</h1>
-    <div class="subtitle">Upload CSVs → Map columns → Match by <span class="kbd">Customer ID</span>, <span class="kbd">Email</span>, or <span class="kbd">Name</span> → Summaries per person & platform. <strong>If a team column contains multiple names, <em>each</em> matching AM gets credit for that client.</strong></div>
+    <div class="subtitle">Upload CSVs → Map columns → Match by <span class="kbd">Customer ID</span>, <span class="kbd">Email</span>, or <span class="kbd">Name</span> → Summaries per person & platform. New (Onboarding) flagged automatically.</div>
   </header>
 
   <main>
@@ -145,7 +145,7 @@
 
       <section class="card">
         <h2>2) Map Columns</h2>
-        <div class="hint">After uploading, pick which columns correspond to each field. You can map per‑team columns with multiple names (comma/semicolon/"and" separated).</div>
+        <div class="hint">After uploading, pick which columns correspond to each field. (Don't worry—you only need to map what's present.)</div>
 
         <div id="mapping-main"></div>
         <div id="mapping-onboard" style="margin-top:12px"></div>
@@ -169,9 +169,13 @@
           </div>
         </div>
         <div id="run-stats" class="hint" style="margin-top:8px"></div>
-        <div class="hint" style="margin-top:6px"><strong>Note:</strong> If a client is shared by multiple AMs or platforms, the amount appears under each relevant person/platform. (Totals can exceed the grand total due to shared credit.)</div>
       </section>
     </div>
+
+    <section class="card" id="revenue-summary" style="margin-top:14px; display:none">
+      <h2>Revenue Summary</h2>
+      <div id="summary-content"></div>
+    </section>
 
     <section class="card" style="margin-top:14px">
       <div class="tabbar">
@@ -221,6 +225,7 @@
         "Sandra Catalina Mateus Abdala",
         "Shao",
         "Preston Mast",
+        "Niima Biuibrahim",
       ]
     };
 
@@ -315,13 +320,12 @@
       { key: 'clientName', label: 'Client Name' },
       { key: 'email', label: 'Email' },
       { key: 'stripeId', label: 'Customer/Stripe ID' },
-      { key: 'am', label: 'Assigned AM (single column)' },
-      { key: 'platform', label: 'Platform (Facebook/TikTok/YouTube/SMM/CSM)' },
+      // Per-team columns; each can contain multiple names (comma/semicolon/"and"/& separated)
       { key: 'amFacebook', label: 'Facebook AMs (multiple names allowed)' },
       { key: 'amTikTok', label: 'TikTok AMs (multiple names allowed)' },
       { key: 'amYouTube', label: 'YouTube AMs (multiple names allowed)' },
-      { key: 'amSMM', label: 'SMM AMs (multiple names allowed)' },
-      { key: 'amCSM', label: 'CSM AMs (multiple names allowed)' },
+      { key: 'amSMM', label: 'SMM (multiple names allowed)' },
+      { key: 'amCSM', label: 'CSM (multiple names allowed)' },
     ];
 
     const STRIPE_FIELDS = [
@@ -413,7 +417,7 @@
       // mark onboarding as new
       const onboardingKeys = new Set(mappedOnboard.map(x => compositeKey(x, cfg)));
 
-      // merge main + onboarding (de-dup by composite key) & carry platform list + assignments
+      // merge main + onboarding (de-dup by composite key) & build assignments/platforms from per-team columns
       const combinedByKey = new Map();
       [...mappedMain, ...mappedOnboard].forEach(rec => {
         const key = compositeKey(rec, cfg);
@@ -427,11 +431,6 @@
         if (!acc.stripeId && rec.stripeId) acc.stripeId = rec.stripeId;
         if (onboardingKeys.has(key)) acc.isNew = true;
 
-        // build assignments from generic AM+platform
-        if (rec.am && rec.platform) {
-          acc.assignments.push({ am: rec.am, platform: rec.platform });
-          acc.platforms.add(rec.platform);
-        }
         // build assignments from per-team columns (can contain multiple names)
         const teamCols = [
           ['Facebook', rec.amFacebook],
@@ -467,17 +466,10 @@
 
       combinedByKey.forEach(client => {
         const match = findStripeMatch(client, stripeAgg, cfg);
-        const base = {
-          clientName: client.clientName,
-          email: client.email,
-          stripeId: client.stripeId,
-          platforms: Array.from(client.platforms),
-          assignments: client.assignments,
-          isNew: client.isNew,
-        };
         if (match) {
           matched.push({
-            ...base,
+            ...client,
+            platforms: Array.from(client.platforms),
             amount: match.amount,
             stripeId: match.stripeId || client.stripeId,
             email: match.email || client.email,
@@ -485,7 +477,7 @@
             matchedOn: match.matchType,
           });
         } else {
-          unmatched.push(base);
+          unmatched.push({ ...client, platforms: Array.from(client.platforms) });
         }
       });
 
@@ -499,6 +491,7 @@
       renderPlatform(byPlatform, cfg);
       renderUnmatched(unmatched);
       renderRaw(matched);
+      renderRevenueSummary(state.results);
 
       // stats
       const totalAmount = matched.reduce((s,x)=> s + (x.amount||0), 0);
@@ -506,8 +499,34 @@
 
       // enable exports
       document.getElementById('btn-export-person').disabled = false;
-      document.getElementById('btn-export-platform').disabled = false;
-      document.getElementById('btn-export-unmatched').disabled = false;
+      document.getElementById('btn-export-platform').addEventListener('click', () => {
+      const res = state.results; if (!res) return;
+      const rows = [];
+      res.byPlatform.forEach(p => {
+        (p.clients || []).forEach(c => rows.push({
+          Platform: p.platform,
+          AMs: uniqueAms(c.assignments).join(', '),
+          Client: c.clientName || '',
+          Email: c.email || '',
+          StripeID: c.stripeId || '',
+          Platforms: (c.platforms||[]).join(', '),
+          New: c.isNew ? 'Yes' : 'No',
+          Amount: c.amount || 0,
+          MatchedOn: c.matchedOn || '',
+        }));
+        (p.unmatched || []).forEach(u => rows.push({
+          Platform: p.platform,
+          AMs: uniqueAms(u.assignments).join(', ') || 'Unassigned',
+          Client: u.clientName || '',
+          Email: u.email || '',
+          StripeID: u.stripeId || '',
+          Platforms: (u.platforms||[]).join(', '),
+          New: u.isNew ? 'Yes' : 'No',
+          Amount: 0,
+          MatchedOn: '—',
+        }));
+      });
+      download('summary_by_platform.csv', toCSV(rows));
     });
 
     function splitNames(raw){
@@ -533,8 +552,6 @@
         clientName: pick(r, map.clientName),
         email: pick(r, map.email),
         stripeId: pick(r, map.stripeId),
-        am: pick(r, map.am),
-        platform: normalizePlatform(pick(r, map.platform)),
         amFacebook: pick(r, map.amFacebook),
         amTikTok: pick(r, map.amTikTok),
         amYouTube: pick(r, map.amYouTube),
@@ -679,6 +696,26 @@
         .sort((a,b) => a.team.localeCompare(b.team) || a.am.localeCompare(b.am));
     }
 
+      // Matched
+      matched.forEach(m => {
+        const am = m.am || 'Unassigned';
+        const p = ensure(am);
+        p.clients.push(m);
+        p.total += (m.amount || 0);
+      });
+
+      // Unmatched but still assigned to an AM
+      unmatched.forEach(u => {
+        const am = u.am || 'Unassigned';
+        const p = ensure(am);
+        p.unmatched.push(u);
+      });
+
+      // sort by team then name
+      return Array.from(people.entries()).map(([am, data]) => ({ am, ...data }))
+        .sort((a,b) => a.team.localeCompare(b.team) || a.am.localeCompare(b.am));
+    }
+
     function uniqueAms(assignments){
       return Array.from(new Set((assignments||[]).map(a => a.am).filter(Boolean)));
     }
@@ -690,7 +727,7 @@
       const knownPlats = new Set(['Facebook','TikTok','YouTube','SMM','CSM']);
 
       matched.forEach(m => {
-        const plats = (m.platforms && m.platforms.length) ? m.platforms : ['Other'];
+        const plats = m.platforms && m.platforms.length ? m.platforms : ['Other'];
         const unique = Array.from(new Set(plats));
         unique.forEach(p => {
           const key = knownPlats.has(p) ? p : 'Other';
@@ -701,7 +738,7 @@
       });
 
       unmatched.forEach(u => {
-        const plats = (u.platforms && u.platforms.length) ? u.platforms : ['Other'];
+        const plats = u.platforms && u.platforms.length ? u.platforms : ['Other'];
         const unique = Array.from(new Set(plats));
         unique.forEach(p => {
           const key = knownPlats.has(p) ? p : 'Other';
@@ -802,6 +839,19 @@
       if (!list || !list.length) { root.innerHTML = '<div class="hint">No matches yet.</div>'; return; }
       const rows = list.map(x => ({
         AMs: uniqueAms(x.assignments).join(', '),
+        Client: x.clientName || '',
+        Email: x.email || '',
+        StripeID: x.stripeId || '',
+        Platforms: (x.platforms||[]).join(', '),
+        New: x.isNew ? 'Yes' : 'No',
+        MultiPlatform: (x.platforms||[]).length > 1 ? 'Yes' : 'No',
+        Amount: x.amount || 0,
+        MatchedOn: x.matchedOn || '',
+      }));
+      root.innerHTML = tableFromObjects(rows);
+    }
+      const rows = list.map(x => ({
+        AM: x.am || 'Unassigned',
         Client: x.clientName || '',
         Email: x.email || '',
         StripeID: x.stripeId || '',
@@ -923,7 +973,7 @@
       res.byPlatform.forEach(p => {
         (p.clients || []).forEach(c => rows.push({
           Platform: p.platform,
-          AMs: uniqueAms(c.assignments).join(', '),
+          AM: c.am || 'Unassigned',
           Client: c.clientName || '',
           Email: c.email || '',
           StripeID: c.stripeId || '',
@@ -934,7 +984,7 @@
         }));
         (p.unmatched || []).forEach(u => rows.push({
           Platform: p.platform,
-          AMs: uniqueAms(u.assignments).join(', '),
+          AM: u.am || 'Unassigned',
           Client: u.clientName || '',
           Email: u.email || '',
           StripeID: u.stripeId || '',
@@ -959,6 +1009,44 @@
       }));
       download('unmatched.csv', toCSV(rows));
     });
+      download('unmatched.csv', toCSV(rows));
+    });
+
+     /***********
+     * Revenue Summary Renderer *
+     ***********/
+    function renderRevenueSummary(res){
+      const card = document.getElementById('revenue-summary');
+      const box = document.getElementById('summary-content');
+      if (!card || !box || !res) return;
+      const total = res.matched.reduce((s,x)=> s + (x.amount||0), 0);
+      const platTotals = (res.byPlatform||[]).map(p => ({ name: p.platform, total: p.total||0, matched: (p.clients||[]).length, unmatched: (p.unmatched||[]).length }));
+      const topPeople = (res.byPerson||[]).slice().sort((a,b)=> (b.total||0)-(a.total||0)).slice(0,5);
+
+      const platTable = `<table><thead><tr><th>Platform</th><th class="right">Total</th><th class="right">Matched</th><th class="right">Unmatched</th></tr></thead><tbody>` +
+        platTotals.map(p => `<tr><td>${encodeHtml(p.name)}</td><td class="right">${fmtCurrency(p.total, res.cfg.currency)}</td><td class="right">${p.matched}</td><td class="right">${p.unmatched}</td></tr>`).join('') +
+        `</tbody></table>`;
+
+      const peopleTable = `<table><thead><tr><th>Person</th><th>Team</th><th class="right">Total</th><th class="right">Clients</th></tr></thead><tbody>` +
+        topPeople.map(p => `<tr><td>${encodeHtml(p.am)}</td><td>${encodeHtml(p.team)}</td><td class="right">${fmtCurrency(p.total, res.cfg.currency)}</td><td class="right">${(p.clients||[]).length}</td></tr>`).join('') +
+        `</tbody></table>`;
+
+      box.innerHTML = `
+        <div class="row" style="align-items:center">
+          <div class="badge" style="font-size:13px; padding:6px 10px">Overall Total: <strong style="margin-left:6px">${fmtCurrency(total, res.cfg.currency)}</strong></div>
+        </div>
+        <div class="spacer"></div>
+        <details open>
+          <summary><div class="summary-row"><strong>By Platform</strong><span class="hint">Totals & counts</span></div></summary>
+          ${platTable}
+        </details>
+        <details open style="margin-top:8px">
+          <summary><div class="summary-row"><strong>Top People</strong><span class="hint">Top 5 by total</span></div></summary>
+          ${peopleTable}
+        </details>`;
+
+      card.style.display = '';
+    }
 
     /*********
      * Tabs  *
