@@ -206,7 +206,6 @@
         "Laura Dimadi",
         "Carren Evangelista",
         "Jimmy Clifford",
-        "Marie Guirjen",
       ],
       YouTube: [
         "Cade Holmquist",
@@ -550,20 +549,16 @@
         if (onboardingKeys.has(key)) acc.isNew = true;
 
         // Build assignments from per-team columns.
-        // Platforms: Facebook, TikTok, YouTube, SMM (Posts)
-        // Managers: AMs & CSMs (CSM is NOT a platform)
         const teamCols = [
-          ['Facebook', rec.amFacebook, true],       // platform
-          ['TikTok', rec.amTikTok, true],          // platform
-          ['YouTube', rec.amYouTube, true],        // platform
-          ['SMM (Posts)', rec.amSMM, true],        // platform
-          ['CSM', rec.amCSM, false],               // manager-only, not platform
+          ['Facebook', rec.amFacebook, true],
+          ['TikTok', rec.amTikTok, true],
+          ['YouTube', rec.amYouTube, true],
+          ['SMM (Posts)', rec.amSMM, true],
+          ['CSM', rec.amCSM, false], // manager-only
         ];
         teamCols.forEach(([teamName, names, countsAsPlatform]) => {
           splitNames(names).forEach(nm => {
-            // Track assignment for people summaries
             acc.assignments.push({ am: nm, team: teamName });
-            // Track platform exposure only for real platforms
             if (countsAsPlatform) acc.platforms.add(teamName);
           });
         });
@@ -579,7 +574,7 @@
         acc.assignments = Array.from(uniq.values());
       });
 
-      // Aggregate Stripe by best available key
+      // Index Stripe by id/email/name; aggregate totals + transaction counts
       const stripeAgg = aggregateStripe(mappedStripe, cfg);
 
       const matched = [];
@@ -591,7 +586,7 @@
           clientName: client.clientName,
           email: client.email,
           stripeId: client.stripeId,
-          platforms: Array.from(client.platforms), // only FB/TT/YT/SMM (Posts)
+          platforms: Array.from(client.platforms),
           assignments: client.assignments,
           isNew: client.isNew,
         };
@@ -599,13 +594,14 @@
           matched.push({
             ...base,
             amount: match.amount,
+            txnCount: match.txnCount || 0,
             stripeId: match.stripeId || client.stripeId,
             email: match.email || client.email,
             clientName: client.clientName || match.clientName,
             matchedOn: match.matchType,
           });
         } else {
-          unmatched.push(base);
+          unmatched.push({ ...base, txnCount: 0 });
         }
       });
 
@@ -621,7 +617,8 @@
       renderRaw(matched);
 
       const totalAmount = matched.reduce((s,x)=> s + (x.amount||0), 0);
-      runStats.innerHTML = `Matched <strong>${matched.length}</strong> client(s). Unmatched <strong>${unmatched.length}</strong>. Total paid <strong>${fmtCurrency(totalAmount, cfg.currency)}</strong>.`;
+      const totalTxns = matched.reduce((s,x)=> s + (x.txnCount||0), 0);
+      runStats.innerHTML = `Matched <strong>${matched.length}</strong> client(s). Unmatched <strong>${unmatched.length}</strong>. Transactions <strong>${totalTxns}</strong>. Total paid <strong>${fmtCurrency(totalAmount, cfg.currency)}</strong>.`;
 
       document.getElementById('btn-export-person').disabled = false;
       document.getElementById('btn-export-platform').disabled = false;
@@ -676,7 +673,7 @@
       return isNaN(n) ? 0 : n;
     }
 
-    // Aggregate Stripe amounts by best available key
+    // Aggregate Stripe amounts & transaction counts by best available key
     function aggregateStripe(list, cfg){
       const byId = new Map();
       const byEmail = new Map();
@@ -685,11 +682,22 @@
         const keyId = (x.stripeId||'').trim();
         const keyEmail = normalizeEmail(x.email);
         const keyName = normalizeName(x.clientName);
-        const obj = byId.get(keyId) || byEmail.get(keyEmail) || byName.get(keyName) || { amount: 0, clientName: x.clientName, email: x.email, stripeId: x.stripeId };
+
+        // Reuse an existing obj if we've seen this customer by any key
+        const obj = byId.get(keyId) || byEmail.get(keyEmail) || byName.get(keyName) || {
+          amount: 0,
+          txnCount: 0,
+          clientName: x.clientName,
+          email: x.email,
+          stripeId: x.stripeId
+        };
+
         obj.amount += x.amount || 0;
+        obj.txnCount += 1;
         obj.clientName = obj.clientName || x.clientName;
         obj.email = obj.email || x.email;
         obj.stripeId = obj.stripeId || x.stripeId;
+
         if (keyId) byId.set(keyId, obj);
         if (keyEmail) byEmail.set(keyEmail, obj);
         if (keyName) byName.set(keyName, obj);
@@ -749,7 +757,7 @@
 
     function summarizeByPerson(matched, unmatched, cfg){
       const people = new Map();
-      function ensure(am){ if (!people.has(am)) people.set(am, { team: locateTeamFor(am), clients: [], unmatched: [], total: 0 }); return people.get(am); }
+      function ensure(am){ if (!people.has(am)) people.set(am, { team: locateTeamFor(am), clients: [], unmatched: [], total: 0, txns: 0 }); return people.get(am); }
 
       matched.forEach(m => {
         const ams = uniqueAms(m.assignments);
@@ -757,6 +765,7 @@
           const p = ensure(am);
           p.clients.push(m);
           p.total += (m.amount || 0);
+          p.txns += (m.txnCount || 0);
         });
       });
 
@@ -779,7 +788,7 @@
 
     function summarizeByPlatform(matched, unmatched, cfg){
       const byPlat = new Map();
-      function ensure(plat){ if (!byPlat.has(plat)) byPlat.set(plat, { clients: [], unmatched: [], total: 0 }); return byPlat.get(plat); }
+      function ensure(plat){ if (!byPlat.has(plat)) byPlat.set(plat, { clients: [], unmatched: [], total: 0, txns: 0 }); return byPlat.get(plat); }
 
       // Only these count as platforms
       const knownPlats = new Set(['Facebook','TikTok','YouTube','SMM (Posts)']);
@@ -792,6 +801,7 @@
           const bucket = ensure(key);
           bucket.clients.push(m);
           bucket.total += (m.amount||0);
+          bucket.txns += (m.txnCount||0);
         });
       });
 
@@ -828,22 +838,24 @@
 
       Array.from(byTeam.entries()).sort((a,b)=> teamOrder.indexOf(a[0]) - teamOrder.indexOf(b[0])).forEach(([team, arr]) => {
         const teamTotal = arr.reduce((s,p)=> s + p.total, 0);
+        const teamTxns = arr.reduce((s,p)=> s + p.txns, 0);
         html += `<details open>
           <summary>
             <div class="summary-row">
               <div><span class="tag ${teamTagCls(team)}">${team}</span> • ${arr.length} person(s)</div>
-              <div class="badge">Total: ${fmtCurrency(teamTotal, cfg.currency)}</div>
+              <div class="badge">Txns: ${teamTxns} • Total: ${fmtCurrency(teamTotal, cfg.currency)}</div>
             </div>
           </summary>
           <div style="padding:8px 2px 2px">`;
 
         arr.forEach(p => {
           const total = p.total;
+          const txns = p.txns;
           html += `<details>
             <summary>
               <div class="summary-row">
                 <div><strong>${encodeHtml(p.am)}</strong> <span class="hint">(${p.clients.length} matched, ${p.unmatched.length} unmatched)</span></div>
-                <div class="badge">${fmtCurrency(total, cfg.currency)}</div>
+                <div class="badge">Txns: ${txns} • ${fmtCurrency(total, cfg.currency)}</div>
               </div>
             </summary>
             <div style="overflow:auto">
@@ -867,11 +879,12 @@
       let html = '';
       list.forEach(x => {
         const total = x.total;
+        const txns = x.txns;
         html += `<details>
           <summary>
             <div class="summary-row">
               <div>${platformTag(x.platform)} <span class="hint">(${x.clients.length} matched, ${x.unmatched.length} unmatched)</span></div>
-              <div class="badge">${fmtCurrency(total, cfg.currency)}</div>
+              <div class="badge">Txns: ${txns} • ${fmtCurrency(total, cfg.currency)}</div>
             </div>
           </summary>
           <div style="overflow:auto">
@@ -895,11 +908,12 @@
       const root = document.getElementById('view-raw');
       if (!list || !list.length) { root.innerHTML = '<div class="hint">No matches yet.</div>'; return; }
       const rows = list.map(x => ({
-        AMs: uniqueAms(x.assignments).join(', '),
+        Managers: uniqueAms(x.assignments).join(', '),
         Client: x.clientName || '',
         Email: x.email || '',
         StripeID: x.stripeId || '',
         Platforms: (x.platforms||[]).join(', '),
+        Transactions: x.txnCount || 0,
         New: x.isNew ? 'Yes' : 'No',
         MultiPlatform: (x.platforms||[]).length > 1 ? 'Yes' : 'No',
         Amount: x.amount || 0,
@@ -930,6 +944,7 @@
         const multi = (x.platforms||[]).length > 1;
         const ams = uniqueAms(x.assignments).join(', ');
         const amount = x.amount || 0;
+        const txns = x.txnCount || 0;
         const amtStr = amount ? fmtCurrency(amount, cfg.currency) : (showZero ? fmtCurrency(0, cfg.currency) : '—');
         const pills = [ x.isNew ? '<span class="pill new">New</span>' : '', multi ? '<span class="pill multi">Multi-Platform</span>' : '' ].filter(Boolean).join(' ');
         return `<tr>
@@ -938,11 +953,12 @@
           <td>${encodeHtml(x.email || '')}</td>
           <td>${encodeHtml(x.stripeId || '')}</td>
           <td>${encodeHtml(platforms || '')}</td>
+          <td class="right">${txns || (showZero ? 0 : '—')}</td>
           <td class="right">${amtStr}</td>
         </tr>`;
       }).join('');
       return `<table>
-        <thead><tr><th>AM(s)/CSM(s)</th><th>Client</th><th>Email</th><th>Stripe ID</th><th>Platforms</th><th class="right">Amount Paid</th></tr></thead>
+        <thead><tr><th>AM(s)/CSM(s)</th><th>Client</th><th>Email</th><th>Stripe ID</th><th>Platforms</th><th class="right">Transactions</th><th class="right">Amount Paid</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     }
@@ -973,14 +989,6 @@
       return head + '\n' + body;
     }
 
-    function download(filename, text){
-      const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename; a.click();
-      URL.revokeObjectURL(url);
-    }
-
     document.getElementById('btn-export-person').addEventListener('click', () => {
       const res = state.results; if (!res) return;
       const rows = [];
@@ -992,6 +1000,7 @@
           Email: c.email || '',
           StripeID: c.stripeId || '',
           Platforms: (c.platforms||[]).join(', '),
+          Transactions: c.txnCount || 0,
           New: c.isNew ? 'Yes' : 'No',
           Amount: c.amount || 0,
           MatchedOn: c.matchedOn || '',
@@ -1003,6 +1012,7 @@
           Email: u.email || '',
           StripeID: u.stripeId || '',
           Platforms: (u.platforms||[]).join(', '),
+          Transactions: 0,
           New: u.isNew ? 'Yes' : 'No',
           Amount: 0,
           MatchedOn: '—',
@@ -1022,6 +1032,7 @@
           Email: c.email || '',
           StripeID: c.stripeId || '',
           Platforms: (c.platforms||[]).join(', '),
+          Transactions: c.txnCount || 0,
           New: c.isNew ? 'Yes' : 'No',
           Amount: c.amount || 0,
           MatchedOn: c.matchedOn || '',
@@ -1033,6 +1044,7 @@
           Email: u.email || '',
           StripeID: u.stripeId || '',
           Platforms: (u.platforms||[]).join(', '),
+          Transactions: 0,
           New: u.isNew ? 'Yes' : 'No',
           Amount: 0,
           MatchedOn: '—',
@@ -1049,10 +1061,19 @@
         Email: u.email || '',
         StripeID: u.stripeId || '',
         Platforms: (u.platforms||[]).join(', '),
+        Transactions: 0,
         New: u.isNew ? 'Yes' : 'No',
       }));
       download('unmatched.csv', toCSV(rows));
     });
+
+    function download(filename, text){
+      const blob = new Blob([text], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
 
     /*********
      * Tabs  *
