@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Per-Person & Per-Platform Summaries — Paid Stripe (No Splits)</title>
+  <title>AM & SMM Summaries — Fixed Roster (Paid Stripe Only)</title>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <style>
     :root { --bg:#0b1020; --card:#121931; --muted:#9fb0c0; --text:#eef3f8; --accent:#6aa3ff; --hl:#1d305f; }
@@ -16,193 +16,104 @@
     .card { background:var(--card); border:1px solid #1d2748; border-radius:16px; padding:16px; }
     .row { display:flex; gap:12px; flex-wrap:wrap; align-items:end; }
     label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
-    input[type=file], textarea, input[type=text] { width:100%; background:#0c1430; color:var(--text); border:1px solid #223158; border-radius:10px; padding:10px 12px; }
-    textarea { min-height:92px; resize:vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .col { flex:1 1 260px; min-width:260px; }
+    input[type=file] { width:100%; background:#0c1430; color:var(--text); border:1px solid #223158; border-radius:10px; padding:10px 12px; }
     button { background:linear-gradient(180deg, #2b58ff, #0049ff); color:white; border:none; padding:12px 16px; border-radius:12px; font-weight:600; cursor:pointer; }
     button.ghost { background:transparent; border:1px solid #2b58ff; color:#cfe0ff; }
     table { width:100%; border-collapse:collapse; }
     th, td { border-bottom:1px solid #1d2748; padding:10px; font-size:13px; text-align:left; vertical-align:top; }
     th { color:#cfe0ff; font-weight:600; }
     .muted { color:var(--muted); }
-    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-    @media (max-width: 900px){ .grid-2{ grid-template-columns:1fr; } }
-    footer { padding:18px 24px; color:#90a6bd; font-size:12px; text-align:center; }
-    .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:#0c1430; padding:2px 6px; border-radius:6px; border:1px solid #223158; }
+    .sectionTitle { margin:0 0 8px; }
     .personBox { border:1px solid #1d2748; border-radius:12px; padding:12px; margin:10px 0 18px; background:#0e1530; }
     .personBox h4 { margin:0 0 6px; font-size:15px; }
     .totals { margin:4px 0 10px; font-size:13px; color:#e5efff; }
-    .platformHead { margin:0 0 8px; }
-    .downloads { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-    .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:8px 0 14px; }
-    .toolbar label { margin:0; display:flex; align-items:center; gap:6px; }
-    .hl { background: var(--hl); font-weight:600; }
-    .hidden { display:none !important; }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media (max-width: 900px){ .grid-2{ grid-template-columns:1fr; } }
+    footer { padding:18px 24px; color:#90a6bd; font-size:12px; text-align:center; }
     .sumline { margin:6px 0 10px; font-size:13px; color:#cfe0ff; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Per-Person & Per-Platform Summaries — No Splits</h1>
-    <p class="sub">Upload <strong>Monday Active</strong>, <strong>Monday Onboarding</strong>, and <strong>Stripe</strong> CSVs. Match by <span class="code">Stripe ID (cus_*)</span> → <span class="code">email</span> → <span class="code">name</span> → <span class="code">fuzzy</span>. Only Monday Active creates assignments. Stripe “paid” includes paid/succeeded/complete-like statuses.</p>
+    <h1>AM & SMM Summaries — Fixed Roster</h1>
+    <p class="sub">Upload <strong>Monday Active</strong>, <strong>Monday Onboarding</strong> (new clients), and <strong>Stripe</strong> CSVs. Matching priority: <code>Stripe ID (cus_*)</code> → email → name → fuzzy. Stripe counts only paid/succeeded/complete-like statuses. No revenue splitting.</p>
   </header>
 
   <main>
     <section class="card">
       <div class="row">
-        <div class="col">
+        <div class="col" style="flex:1 1 260px; min-width:260px;">
           <label>1) Monday — Active Clients CSV</label>
           <input type="file" id="mondayActive" accept=".csv" />
         </div>
-        <div class="col">
-          <label>2) Monday — Onboarding/New Clients CSV</label>
+        <div class="col" style="flex:1 1 260px; min-width:260px;">
+          <label>2) Monday — Onboarding (New Clients) CSV</label>
           <input type="file" id="mondayOnboarding" accept=".csv" />
         </div>
-        <div class="col">
+        <div class="col" style="flex:1 1 260px; min-width:260px;">
           <label>3) Stripe — Transactions CSV</label>
           <input type="file" id="stripeCsv" accept=".csv" />
         </div>
       </div>
-      <div class="downloads">
-        <!-- Per-person CSVs -->
-        <button class="ghost" id="dlFB" disabled>Download: Facebook AMs (per-person)</button>
-        <button class="ghost" id="dlTT" disabled>Download: TikTok AMs (per-person)</button>
-        <button class="ghost" id="dlYT" disabled>Download: YouTube AMs (per-person)</button>
-        <button class="ghost" id="dlSMM" disabled>Download: SMM (per-person)</button>
-        <!-- Platform CSVs -->
-        <button class="ghost" id="dlFBPlat" disabled>Download: Facebook — platform summary</button>
-        <button class="ghost" id="dlTTPlat" disabled>Download: TikTok — platform summary</button>
-        <button class="ghost" id="dlYTPlat" disabled>Download: YouTube — platform summary</button>
-        <button class="ghost" id="dlSMMPlat" disabled>Download: SMM — platform summary</button>
-
-        <button class="ghost" id="dlUnmatched" disabled>Download: Unmatched Paid Stripe Rows</button>
-        <button id="go">Generate Summaries</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+        <button id="go">Generate</button>
+        <button class="ghost" id="dlFB" disabled>Download: Facebook AMs (CSV)</button>
+        <button class="ghost" id="dlTT" disabled>Download: TikTok AMs (CSV)</button>
+        <button class="ghost" id="dlYT" disabled>Download: YouTube AMs (CSV)</button>
+        <button class="ghost" id="dlSMM" disabled>Download: SMM (CSV)</button>
+        <button class="ghost" id="dlOnb" disabled>Download: Onboarding Summary (CSV)</button>
+        <button class="ghost" id="dlUnmatched" disabled>Download: Unmatched Paid Stripe Rows (CSV)</button>
       </div>
     </section>
 
+    <!-- Platform sections -->
     <section class="card">
-      <div class="grid-2">
-        <div>
-          <h3 class="platformHead">Allowed People</h3>
-          <p class="sub" style="margin-bottom:8px;">Only these names are considered valid (comma or newline separated). Clients show under each matching person.</p>
-          <div class="grid-2">
-            <div>
-              <label>Facebook AMs</label>
-              <textarea id="fbList">Evarose
-Charlene
-Joshua Advincula
-Rainier Vann Muñoz
-Marie Guirjen
-Veronica Trigo
-May Muñoz</textarea>
-            </div>
-            <div>
-              <label>TikTok AMs</label>
-              <textarea id="ttList">Laura Dimadi
-Carren Evangelista</textarea>
-            </div>
-          </div>
-          <div class="grid-2" style="margin-top:8px;">
-            <div>
-              <label>YouTube AMs</label>
-              <textarea id="ytList">Cade Holmquist
-YouTube</textarea>
-            </div>
-            <div>
-              <label>SMM (Posts)</label>
-              <textarea id="smmList">Jasmine Garcia
-Krilen Andoque</textarea>
-            </div>
-          </div>
-        </div>
-        <div>
-          <h3 class="platformHead">Columns expected</h3>
-          <ul class="sub">
-            <li>Monday Active: <span class="code">Client Name</span>/<span class="code">Name</span>, <span class="code">FB AM</span>, <span class="code">TT AM</span>, <span class="code">YT AM</span>, <span class="code">SMM</span>, <span class="code">Email</span>, <span class="code">Stripe ID</span>, and service flags: <span class="code">Facebook Service</span>, <span class="code">TikTok</span>, <span class="code">Youtube Service</span>, <span class="code">Organic Post Service</span></li>
-            <li>Onboarding: name-only fallback (doesn’t create assignments)</li>
-            <li>Stripe: <span class="code">Customer ID</span> (cus_*), <span class="code">Status</span>, <span class="code">Customer Description</span>, <span class="code">Customer Email</span>, <span class="code">Amount</span>, <span class="code">Created date (UTC)</span></li>
-          </ul>
-          <p class="sub">If a Monday cell lists multiple people (e.g. “A / B”), the client appears in <em>each</em> person’s list. Platform totals will double-count clients that use multiple services (by design — no splits).</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Platform summaries -->
-    <section class="card">
-      <h3 class="platformHead">Facebook — Platform Summary</h3>
-      <div id="fbPlatSum"></div>
-    </section>
-    <section class="card">
-      <h3 class="platformHead">TikTok — Platform Summary</h3>
-      <div id="ttPlatSum"></div>
-    </section>
-    <section class="card">
-      <h3 class="platformHead">YouTube — Platform Summary</h3>
-      <div id="ytPlatSum"></div>
-    </section>
-    <section class="card">
-      <h3 class="platformHead">SMM (Posts) — Platform Summary</h3>
-      <div id="smmPlatSum"></div>
-    </section>
-
-    <!-- Per-person lists -->
-    <section class="card">
-      <h3 class="platformHead">Facebook AMs — Per-Person Lists</h3>
-      <div class="toolbar">
-        <input id="searchFB" type="text" placeholder="Search client…" />
-        <label><input type="checkbox" id="fbOnly" /> show only matches</label>
-        <button class="ghost" id="fbClear">Clear</button>
-      </div>
+      <h3 class="sectionTitle">Facebook AMs — Per-Person</h3>
       <div id="fbWrap"></div>
     </section>
-
     <section class="card">
-      <h3 class="platformHead">TikTok AMs — Per-Person Lists</h3>
-      <div class="toolbar">
-        <input id="searchTT" type="text" placeholder="Search client…" />
-        <label><input type="checkbox" id="ttOnly" /> show only matches</label>
-        <button class="ghost" id="ttClear">Clear</button>
-      </div>
+      <h3 class="sectionTitle">TikTok AMs — Per-Person</h3>
       <div id="ttWrap"></div>
     </section>
-
     <section class="card">
-      <h3 class="platformHead">YouTube AMs — Per-Person Lists</h3>
-      <div class="toolbar">
-        <input id="searchYT" type="text" placeholder="Search client…" />
-        <label><input type="checkbox" id="ytOnly" /> show only matches</label>
-        <button class="ghost" id="ytClear">Clear</button>
-      </div>
+      <h3 class="sectionTitle">YouTube AMs — Per-Person</h3>
       <div id="ytWrap"></div>
     </section>
-
     <section class="card">
-      <h3 class="platformHead">SMM (Posts) — Per-Person Lists</h3>
-      <div class="toolbar">
-        <input id="searchSMM" type="text" placeholder="Search client…" />
-        <label><input type="checkbox" id="smmOnly" /> show only matches</label>
-        <button class="ghost" id="smmClear">Clear</button>
-      </div>
+      <h3 class="sectionTitle">SMM (Posts) — Per-Person</h3>
       <div id="smmWrap"></div>
     </section>
 
+    <!-- Onboarding summary -->
     <section class="card">
-      <h3 style="margin-top:0;">Run Log</h3>
-      <pre id="log" class="sub" style="white-space:pre-wrap;"></pre>
+      <h3 class="sectionTitle">Onboarding — New Clients (no assignments)</h3>
+      <div id="onbWrap"></div>
+    </section>
+
+    <!-- Log -->
+    <section class="card">
+      <h3 class="sectionTitle">Run Log</h3>
+      <pre id="log" class="muted" style="white-space:pre-wrap; margin:0;"></pre>
     </section>
   </main>
 
-  <footer>
-    Built for quick, offline matching on GitHub Pages. No data leaves your browser.
-  </footer>
+  <footer>No data leaves your browser. Built for GitHub Pages / local use.</footer>
 
   <script>
+    // ---------- FIXED ROSTERS (edit here if your teams change) ----------
+    const ROSTERS = {
+      FB:  ["Evarose","Charlene","Joshua Advincula","Rainier Vann Muñoz","Marie Guirjen","Veronica Trigo","May Muñoz"],
+      TT:  ["Laura Dimadi","Carren Evangelista"],
+      YT:  ["Cade Holmquist","YouTube"],
+      SMM: ["Jasmine Garcia","Krilen Andoque"],
+    };
+    // -------------------------------------------------------------------
+
     const $ = (sel) => document.querySelector(sel);
     const logEl = $("#log");
     const appendLog = (msg) => { logEl.textContent += msg + "\\n"; };
 
-    const parseList = (text) => (text || "").split(/\\n|,/).map(s => s.trim()).filter(Boolean);
-
+    // Utils
     function normalize(s){
       if(!s) return "";
       s = String(s).toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "");
@@ -210,12 +121,24 @@ Krilen Andoque</textarea>
       return s;
     }
     const tokens = (s) => new Set(normalize(s).split(" ").filter(Boolean));
+    const toFloat = (x) => {
+      if(x==null) return NaN;
+      const s = String(x).replace(/,/g, "");
+      const m = s.match(/[0-9.-]+/g);
+      if(!m) return NaN;
+      return parseFloat(m.join(""));
+    };
+    const fmt = (n) => {
+      if(!isFinite(n)) return '0.00';
+      try { return new Intl.NumberFormat('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}).format(n); }
+      catch { return (Math.round(n*100)/100).toFixed(2); }
+    };
 
     function headerRowIndex(data){
       for(let i=0;i<Math.min(10, data.length);i++){
         const row = data[i].map(v => (v||"").toString().trim());
         if(row.includes("Name") || row.includes("Client Name")) return i;
-        if(row.includes("FB AM") || row.includes("TT AM") || row.includes("YT AM")) return i;
+        if(row.includes("FB AM") || row.includes("TT AM") || row.includes("YT AM") || row.includes("SMM")) return i;
       }
       return 0;
     }
@@ -243,57 +166,25 @@ Krilen Andoque</textarea>
       });
     }
 
-    const toFloat = (x) => {
-      if(x==null) return NaN;
-      const s = String(x).replace(/,/g, "");
-      const m = s.match(/[0-9.-]+/g);
-      if(!m) return NaN;
-      return parseFloat(m.join(""));
-    };
-
-    function downloadCSV(filename, rows){
-      const csv = Papa.unparse(rows);
-      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1500);
-    }
-
-    // Allowed maps
-    function buildAllowedMaps(){
-      const roles = {
-        FB:  parseList($('#fbList').value),
-        TT:  parseList($('#ttList').value),
-        YT:  parseList($('#ytList').value),
-        SMM: parseList($('#smmList').value),
-      };
-      const maps = {};
-      for(const [role, list] of Object.entries(roles)){
-        maps[role] = new Map(list.map(n => [normalize(n), n]));
-      }
-      return maps;
-    }
-
-    // Return ALL valid allowed names found in the cell (order preserved; soft token match)
-    function pickAssignedAll(rawCell, allowedMap){
+    // pick people from a cell using fixed roster
+    function pickAssignedAll(rawCell, roster){
       if(!rawCell) return [];
       const out = [];
       const parts = String(rawCell).split(/[,/;]| and /i).map(s => s.trim()).filter(Boolean);
+      const normRoster = roster.map(n => ({n, k: normalize(n)}));
       for(const p of parts){
         const np = normalize(p);
-        if(allowedMap.has(np)){ out.push(allowedMap.get(np)); continue; }
+        // exact or token-inclusive match
         const pt = tokens(np);
-        if(pt.size){
-          for(const [key, canon] of allowedMap.entries()){
-            const kt = tokens(key);
-            const ptInK = [...pt].every(tok => kt.has(tok));
-            const kInPt = [...kt].every(tok => pt.has(tok));
-            if(ptInK || kInPt){ out.push(canon); break; }
-          }
+        for(const r of normRoster){
+          const rt = tokens(r.k);
+          const ptInR = [...pt].every(tok => rt.has(tok));
+          const rInPt = [...rt].every(tok => pt.has(tok));
+          if(r.k === np || ptInR || rInPt){ out.push(r.n); }
         }
       }
-      return out.filter((v, i, a) => a.indexOf(v) === i); // dedup keep order
+      // dedup keep order
+      return out.filter((v, i, a) => a.indexOf(v) === i);
     }
 
     function activeFlag(val, headerEcho){
@@ -301,6 +192,7 @@ Krilen Andoque</textarea>
       const s = String(val).trim();
       if(!s) return false;
       if(headerEcho && s.toLowerCase() === headerEcho.toLowerCase()) return false;
+      if(['false','no','0'].includes(s.toLowerCase())) return false;
       return true;
     }
 
@@ -320,48 +212,42 @@ Krilen Andoque</textarea>
 
     function clientNameFromMondayRow(row){
       if('Client Name' in row && String(row['Client Name']).trim() !== '') return String(row['Client Name']).trim();
-      if('Name' in row){
-        return String(row['Name']).replace(/^Main\\s*-\\s*/i, '').trim();
-      }
+      if('Name' in row){ return String(row['Name']).replace(/^Main\\s*-\\s*/i, '').trim(); }
       return '';
     }
 
-    // Normalize Monday Active (multi-assign allowed)
-    function normalizeMondayActive(objs, allowed){
+    function normalizeMondayActive(objs){
       return objs.map(row => {
         const clientName = clientNameFromMondayRow(row);
         return {
-          _source: 'active',
+          stage: 'Active',
           client_name: clientName,
           client_key: normalize(clientName),
           email: (row['Email'] || '').toString().trim().toLowerCase(),
           stripe_id: (row['Stripe ID'] || '').toString().trim().toLowerCase(),
-          fb_ams: pickAssignedAll(row['FB AM'], allowed.FB),
-          tt_ams: pickAssignedAll(row['TT AM'], allowed.TT),
-          yt_ams: pickAssignedAll(row['YT AM'], allowed.YT),
-          smms:   pickAssignedAll(row['SMM'],   allowed.SMM),
           services: servicesFromRow(row),
+          fb_ams: pickAssignedAll(row['FB AM'], ROSTERS.FB),
+          tt_ams: pickAssignedAll(row['TT AM'], ROSTERS.TT),
+          yt_ams: pickAssignedAll(row['YT AM'], ROSTERS.YT),
+          smms:   pickAssignedAll(row['SMM'],   ROSTERS.SMM),
         };
       }).filter(r => r.client_key && !['client name','name','stripe id'].includes(r.client_key));
     }
 
-    // Normalize Monday Onboarding (name-only fallback; no assignments)
     function normalizeMondayOnboarding(objs){
       return objs.map(row => {
         const clientName = clientNameFromMondayRow(row);
         return {
-          _source: 'onboarding',
+          stage: 'Onboarding',
           client_name: clientName,
           client_key: normalize(clientName),
           email: (row['Email'] || '').toString().trim().toLowerCase(),
           stripe_id: '',
-          fb_ams: [], tt_ams: [], yt_ams: [], smms: [],
           services: servicesFromRow(row),
         };
       }).filter(r => r.client_key && !['client name','name','stripe id'].includes(r.client_key));
     }
 
-    // Extract Stripe Customer ID (cus_...)
     function extractStripeCustomerId(obj){
       const direct = obj['Customer ID'] || obj['Customer Id'] || obj['Customer'] || obj['customer_id'] || obj['customer'];
       const tryStr = (v) => {
@@ -401,9 +287,9 @@ Krilen Andoque</textarea>
     }
 
     function buildIndexes(active, onboarding){
-      const byStripeId = new Map();
-      const byEmail = new Map();
-      const byClientKey = new Map();
+      const byStripeId = new Map(); // Active only (Stripe ID lives there)
+      const byEmail = new Map();    // prefer Active; fallback Onboarding
+      const byClientKey = new Map();// prefer Active; fallback Onboarding
       for(const r of active){
         if(r.stripe_id) byStripeId.set(r.stripe_id, r);
         if(r.email && !byEmail.has(r.email)) byEmail.set(r.email, r);
@@ -430,10 +316,10 @@ Krilen Andoque</textarea>
       return bestScore >= 0.5 ? bestKey : null;
     }
 
-    function computePaidTotals(activeMap, matchedRows){
+    function computePaidTotals(clientMap, matchedRows){
       const totals = new Map(); // client_key -> {sum, count, first, last}
       for(const r of matchedRows){
-        if(!activeMap.has(r.client_key)) continue;
+        if(!clientMap.has(r.client_key)) continue; // only attribute to known clients
         const amt = Number(r.amount || 0);
         const dt = r.created_utc ? new Date(r.created_utc) : null;
         if(!totals.has(r.client_key)){ totals.set(r.client_key, { sum: 0, count: 0, first: null, last: null }); }
@@ -448,121 +334,12 @@ Krilen Andoque</textarea>
       return totals;
     }
 
-    // ----- Per-person lists (no splits) -----
-    function buildPerPersonLists(activeList, paidTotals){
-      function listsFor(serviceKey){
-        const per = new Map(); // person -> rows[]
-        for(const a of activeList){
-          const svcs = a.services || [];
-          const hasSvc =
-            serviceKey === 'Facebook' ? svcs.includes('Facebook') :
-            serviceKey === 'TikTok'   ? svcs.includes('TikTok')   :
-            serviceKey === 'YouTube'  ? svcs.includes('YouTube')  :
-            serviceKey === 'Posts'    ? svcs.includes('Posts')    : false;
-          if(!hasSvc) continue;
+    // Build per-person lists for a given platform; make sure EVERY roster person appears
+    function buildPerPerson(activeList, paidTotals, platformKey, rosterNames, onboardingSet){
+      const per = new Map();
+      // seed empty lists so everyone shows up
+      for(const name of rosterNames){ per.set(name, []); }
 
-          let people = [];
-          if(serviceKey === 'Facebook') people = a.fb_ams || [];
-          if(serviceKey === 'TikTok')   people = a.tt_ams || [];
-          if(serviceKey === 'YouTube')  people = a.yt_ams || [];
-          if(serviceKey === 'Posts')    people = a.smms   || [];
-
-          if(people.length === 0) continue;
-
-          const tot = paidTotals.get(a.client_key);
-          const revenueNum = tot ? tot.sum : 0;
-          const txCount = tot ? tot.count : 0;
-          const first = tot && tot.first ? tot.first.toISOString() : '';
-          const last  = tot && tot.last  ? tot.last.toISOString()  : '';
-
-          for(const p of people){
-            if(!per.has(p)) per.set(p, []);
-            per.get(p).push({
-              Person: p,
-              Client: a.client_name,
-              Email: a.email || '',
-              Stripe_ID: a.stripe_id || '',
-              Services: (a.services || []).join('; '),
-              Revenue_Paid: revenueNum > 0 ? revenueNum.toFixed(2) : 'Not paid',
-              Revenue_Paid_Value: revenueNum, // numeric for totals
-              Paid_Txns: txCount,
-              First_Paid_Date: first,
-              Last_Paid_Date: last
-            });
-          }
-        }
-        for(const [p, rows] of per.entries()){ rows.sort((x,y)=> x.Client.localeCompare(y.Client)); }
-        return per;
-      }
-      return { fb: listsFor('Facebook'), tt: listsFor('TikTok'), yt: listsFor('YouTube'), smm: listsFor('Posts') };
-    }
-
-    function formatNumber(n){
-      if(!isFinite(n)) return '0.00';
-      try { return new Intl.NumberFormat('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }).format(n); }
-      catch { return (Math.round(n*100)/100).toFixed(2); }
-    }
-
-    function renderPersonSections(mapPersonToRows, containerSel){
-      const wrap = document.querySelector(containerSel);
-      wrap.innerHTML = '';
-      if(!mapPersonToRows || mapPersonToRows.size === 0){
-        wrap.innerHTML = '<p class="muted">No data.</p>'; return;
-      }
-      for(const [person, rows] of Array.from(mapPersonToRows.entries()).sort((a,b)=> a[0].localeCompare(b[0]))){
-        const box = document.createElement('div');
-        box.className = 'personBox';
-
-        const title = document.createElement('h4');
-        title.textContent = person;
-        box.appendChild(title);
-
-        // Totals line (sum revenue over this person's clients; no splitting)
-        const total = rows.reduce((acc, r) => acc + (Number(r.Revenue_Paid_Value) || 0), 0);
-        const paidClients = rows.filter(r => (Number(r.Revenue_Paid_Value) || 0) > 0).length;
-        const totalsP = document.createElement('div');
-        totalsP.className = 'totals';
-        totalsP.innerHTML = `<strong>Total Paid Revenue:</strong> ${formatNumber(total)}  •  <strong>Clients:</strong> ${rows.length}  •  <strong>Clients Paid:</strong> ${paidClients}`;
-        box.appendChild(totalsP);
-
-        const headers = Object.keys(rows[0] || {}).filter(h => h !== 'Revenue_Paid_Value');
-        const tbl = document.createElement('table');
-        const thead = document.createElement('thead');
-        const thr = document.createElement('tr');
-        headers.forEach(h => { const th=document.createElement('th'); th.textContent=h; thr.appendChild(th); });
-        thead.appendChild(thr); tbl.appendChild(thead);
-
-        const tbody = document.createElement('tbody');
-        rows.forEach(r => {
-          const tr = document.createElement('tr');
-          headers.forEach(h => { const td=document.createElement('td'); td.textContent = r[h] ?? ''; tr.appendChild(td); });
-          tbody.appendChild(tr);
-        });
-        tbl.appendChild(tbody);
-        box.appendChild(tbl);
-        wrap.appendChild(box);
-      }
-    }
-
-    function flattenPerPersonForCsv(mapPersonToRows){
-      const out = [];
-      for(const [person, rows] of mapPersonToRows.entries()){
-        const total = rows.reduce((acc, r) => acc + (Number(r.Revenue_Paid_Value) || 0), 0);
-        out.push({ Person: person, Client: '—TOTAL—', Email: '', Stripe_ID: '', Services: '', Revenue_Paid: total.toFixed(2), Paid_Txns: '', First_Paid_Date: '', Last_Paid_Date: '' });
-        for(const r of rows){
-          const { Revenue_Paid_Value, ...rest } = r;
-          out.push(rest);
-        }
-      }
-      out.sort((a,b)=> (a.Person||'').localeCompare(b.Person||'') || ((a.Client==='—TOTAL—')? -1 : 0));
-      return out;
-    }
-
-    // ----- Per-platform summaries (one row per client; shows assigned people for that platform) -----
-    function buildPlatformSummary(activeList, paidTotals, platformKey){
-      // Select rows with this service
-      const rows = [];
-      const seen = new Set(); // client_key
       for(const a of activeList){
         const svcs = a.services || [];
         const hasSvc =
@@ -572,51 +349,126 @@ Krilen Andoque</textarea>
           platformKey === 'Posts'    ? svcs.includes('Posts')    : false;
         if(!hasSvc) continue;
 
-        if(seen.has(a.client_key)) continue;
-        seen.add(a.client_key);
-
         let people = [];
         if(platformKey === 'Facebook') people = a.fb_ams || [];
         if(platformKey === 'TikTok')   people = a.tt_ams || [];
         if(platformKey === 'YouTube')  people = a.yt_ams || [];
         if(platformKey === 'Posts')    people = a.smms   || [];
+        if(people.length === 0) continue;
 
         const tot = paidTotals.get(a.client_key);
-        const revenueNum = tot ? tot.sum : 0;
+        const revenue = tot ? tot.sum : 0;
         const txCount = tot ? tot.count : 0;
         const first = tot && tot.first ? tot.first.toISOString() : '';
         const last  = tot && tot.last  ? tot.last.toISOString()  : '';
+        const stage = onboardingSet.has(a.client_key) ? 'Onboarding' : 'Active';
 
-        rows.push({
-          Platform: platformKey,
-          Client: a.client_name,
-          Email: a.email || '',
-          Stripe_ID: a.stripe_id || '',
-          Assigned: people.join('; '),
-          Services: svcs.join('; '),
-          Revenue_Paid: revenueNum > 0 ? revenueNum.toFixed(2) : 'Not paid',
-          Revenue_Paid_Value: revenueNum, // numeric for totals
+        for(const person of people){
+          if(!per.has(person)) per.set(person, []); // in case roster changed
+          per.get(person).push({
+            Person: person,
+            Client: a.client_name,
+            Email: a.email || '',
+            Stripe_ID: a.stripe_id || '',
+            Stage: stage,
+            Services: svcs.join('; '),
+            Revenue_Paid: revenue > 0 ? revenue.toFixed(2) : 'Not paid',
+            Revenue_Paid_Value: revenue,
+            Paid_Txns: txCount,
+            First_Paid_Date: first,
+            Last_Paid_Date: last
+          });
+        }
+      }
+
+      // sort each person's list by client name
+      for(const [p, rows] of per.entries()){
+        rows.sort((x,y)=> x.Client.localeCompare(y.Client));
+      }
+      return per;
+    }
+
+    function renderPerPerson(mapPersonRows, wrapSel){
+      const wrap = document.querySelector(wrapSel);
+      wrap.innerHTML = '';
+      for(const [person, rows] of Array.from(mapPersonRows.entries()).sort((a,b)=> a[0].localeCompare(b[0]))){
+        const box = document.createElement('div');
+        box.className = 'personBox';
+        const h = document.createElement('h4');
+        h.textContent = person;
+        box.appendChild(h);
+
+        const total = rows.reduce((acc, r) => acc + (Number(r.Revenue_Paid_Value)||0), 0);
+        const paidClients = rows.filter(r => (Number(r.Revenue_Paid_Value)||0) > 0).length;
+        const totalsP = document.createElement('div');
+        totalsP.className = 'totals';
+        totalsP.innerHTML = `<strong>Total Paid Revenue:</strong> ${fmt(total)}  •  <strong>Clients:</strong> ${rows.length}  •  <strong>Clients Paid:</strong> ${paidClients}`;
+        box.appendChild(totalsP);
+
+        const visibleHeaders = ["Person","Client","Email","Stripe_ID","Stage","Services","Revenue_Paid","Paid_Txns","First_Paid_Date","Last_Paid_Date"];
+        const thead = '<thead><tr>'+visibleHeaders.map(h=>`<th>${h}</th>`).join('')+'</tr></thead>';
+        const tbody = '<tbody>' + rows.map(r =>
+          '<tr>'+visibleHeaders.map(h=>`<td>${r[h] ?? ''}</td>`).join('')+'</tr>'
+        ).join('') + '</tbody>';
+        const tbl = document.createElement('table');
+        tbl.innerHTML = thead + tbody;
+        box.appendChild(tbl);
+
+        wrap.appendChild(box);
+      }
+      if(mapPersonRows.size === 0){ wrap.innerHTML = '<p class="muted">No data.</p>'; }
+    }
+
+    function flattenPerPersonForCsv(mapPersonRows){
+      const out = [];
+      for(const [person, rows] of mapPersonRows.entries()){
+        const total = rows.reduce((acc, r) => acc + (Number(r.Revenue_Paid_Value)||0), 0);
+        out.push({Person: person, Client:'—TOTAL—', Email:'', Stripe_ID:'', Stage:'', Services:'', Revenue_Paid: total.toFixed(2), Paid_Txns:'', First_Paid_Date:'', Last_Paid_Date:''});
+        for(const r of rows){
+          const { Revenue_Paid_Value, ...rest } = r;
+          out.push(rest);
+        }
+      }
+      // stable order: Person asc, keep total first per person
+      out.sort((a,b)=> (a.Person||'').localeCompare(b.Person||'') || ((a.Client==='—TOTAL—')? -1 : 0));
+      return out;
+    }
+
+    function buildOnboardingSummary(onboardingList, paidTotals){
+      // one row per onboarding client
+      const rows = onboardingList.map(o => {
+        const tot = paidTotals.get(o.client_key);
+        const revenue = tot ? tot.sum : 0;
+        const txCount = tot ? tot.count : 0;
+        const first = tot && tot.first ? tot.first.toISOString() : '';
+        const last  = tot && tot.last  ? tot.last.toISOString()  : '';
+        return {
+          Client: o.client_name,
+          Email: o.email || '',
+          Stripe_ID: o.stripe_id || '',
+          Stage: 'Onboarding',
+          Services: (o.services||[]).join('; '),
+          Revenue_Paid: revenue > 0 ? revenue.toFixed(2) : 'Not paid',
+          Revenue_Paid_Value: revenue,
           Paid_Txns: txCount,
           First_Paid_Date: first,
           Last_Paid_Date: last
-        });
-      }
-      rows.sort((a,b)=> a.Client.localeCompare(b.Client));
-      const totalRevenue = rows.reduce((acc, r) => acc + (Number(r.Revenue_Paid_Value)||0), 0);
-      const paidCount = rows.filter(r => (Number(r.Revenue_Paid_Value)||0) > 0).length;
-      return { rows, totals: { clients: rows.length, clientsPaid: paidCount, revenue: totalRevenue } };
+        };
+      }).sort((a,b)=> a.Client.localeCompare(b.Client));
+      const total = rows.reduce((acc, r)=> acc + (Number(r.Revenue_Paid_Value)||0), 0);
+      return { rows, total };
     }
 
-    function renderPlatformSummary(summary, targetSel){
-      const el = document.querySelector(targetSel);
-      el.innerHTML = '';
-      const { rows, totals } = summary || {};
-      if(!rows || rows.length === 0){ el.innerHTML = '<p class="muted">No data.</p>'; return; }
+    function renderOnboardingSummary(summary, wrapSel){
+      const wrap = document.querySelector(wrapSel);
+      wrap.innerHTML = '';
+      const { rows, total } = summary || { rows: [], total: 0 };
+      const line = document.createElement('div');
+      line.className = 'sumline';
+      line.innerHTML = `<strong>Total Paid Revenue (Onboarding):</strong> ${fmt(total)}  •  <strong>Clients:</strong> ${rows.length}`;
+      wrap.appendChild(line);
 
-      const sumLine = document.createElement('div');
-      sumLine.className = 'sumline';
-      sumLine.innerHTML = `<strong>Total Paid Revenue:</strong> ${formatNumber(totals.revenue)}  •  <strong>Clients:</strong> ${totals.clients}  •  <strong>Clients Paid:</strong> ${totals.clientsPaid} <span class="muted">(no splits; multi-service clients appear in multiple platforms)</span>`;
-      el.appendChild(sumLine);
+      if(rows.length === 0){ wrap.insertAdjacentHTML('beforeend','<p class="muted">No onboarding clients found.</p>'); return; }
 
       const headers = Object.keys(rows[0]).filter(h => h !== 'Revenue_Paid_Value');
       let html = '<div style="overflow:auto"><table><thead><tr>' +
@@ -624,51 +476,13 @@ Krilen Andoque</textarea>
         '</tr></thead><tbody>';
       html += rows.map(r => '<tr>' + headers.map(h => `<td>${r[h] ?? ''}</td>`).join('') + '</tr>').join('');
       html += '</tbody></table></div>';
-      el.insertAdjacentHTML('beforeend', html);
+      wrap.insertAdjacentHTML('beforeend', html);
     }
 
-    function flattenPlatformForCsv(summary){
-      const { rows, totals } = summary || { rows: [], totals: { revenue: 0, clients: 0, clientsPaid: 0 } };
-      const header = [{ Platform: rows[0]?.Platform || '', Client: '—TOTAL—', Email: '', Stripe_ID: '', Assigned: '', Services: '', Revenue_Paid: totals.revenue.toFixed(2), Paid_Txns: '', First_Paid_Date: '', Last_Paid_Date: '' }];
-      return header.concat(rows.map(({Revenue_Paid_Value, ...rest}) => rest));
-    }
-
-    // --- Search / Highlight per-person ---
-    function applySearch(containerSel, term, onlyMatches){
-      const wrap = document.querySelector(containerSel);
-      if(!wrap) return;
-      const q = normalize(term || "");
-      const boxes = wrap.querySelectorAll('.personBox');
-      boxes.forEach(box => {
-        const headerCells = Array.from(box.querySelectorAll('thead th'));
-        const clientIdx = headerCells.findIndex(th => th.textContent.trim().toLowerCase() === 'client');
-        const rows = Array.from(box.querySelectorAll('tbody tr'));
-        rows.forEach(tr => {
-          const tds = tr.querySelectorAll('td');
-          const clientCell = clientIdx >= 0 ? tds[clientIdx] : tds[1];
-          const clientText = normalize(clientCell ? clientCell.textContent : '');
-          const isHit = q ? clientText.includes(q) : false;
-          tr.classList.toggle('hl', isHit && !!q);
-          if(onlyMatches){ tr.classList.toggle('hidden', q ? !isHit : true); }
-          else{ tr.classList.remove('hidden'); }
-        });
-        if(onlyMatches){
-          const anyVisible = rows.some(r => !r.classList.contains('hidden'));
-          box.classList.toggle('hidden', !anyVisible);
-        }else{
-          box.classList.remove('hidden');
-        }
-      });
-    }
-
-    function hookSearch(inputSel, checkboxSel, clearBtnSel, containerSel){
-      const inp = document.querySelector(inputSel);
-      const chk = document.querySelector(checkboxSel);
-      const clr = document.querySelector(clearBtnSel);
-      const run = () => applySearch(containerSel, inp.value, chk.checked);
-      inp.addEventListener('input', run);
-      chk.addEventListener('change', run);
-      clr.addEventListener('click', () => { inp.value=''; chk.checked=false; applySearch(containerSel, '', false); });
+    function flattenOnboardingForCsv(summary){
+      const { rows, total } = summary || { rows: [], total: 0 };
+      return [{Client:'—TOTAL—', Email:'', Stripe_ID:'', Stage:'Onboarding', Services:'', Revenue_Paid: total.toFixed(2), Paid_Txns:'', First_Paid_Date:'', Last_Paid_Date:''}]
+             .concat(rows.map(({Revenue_Paid_Value, ...rest}) => rest));
     }
 
     async function run(){
@@ -684,7 +498,7 @@ Krilen Andoque</textarea>
       const activeRaw = await csvToObjectsWithHeaderGuess(mondayActiveFile);
       appendLog(`  Active rows: ${activeRaw.length}`);
 
-      appendLog('Parsing Monday Onboarding...');
+      appendLog('Parsing Monday Onboarding (new clients)...');
       const onRaw = await csvToObjectsWithHeaderGuess(mondayOnboardingFile);
       appendLog(`  Onboarding rows: ${onRaw.length}`);
 
@@ -692,18 +506,24 @@ Krilen Andoque</textarea>
       const stripeRaw = await csvToObjectsWithHeaderGuess(stripeFile);
       appendLog(`  Stripe rows: ${stripeRaw.length}`);
 
-      const allowed = buildAllowedMaps();
-      const mondayActive = normalizeMondayActive(activeRaw, allowed);
+      // Normalize
+      const mondayActive = normalizeMondayActive(activeRaw);
       const mondayOn     = normalizeMondayOnboarding(onRaw);
       const stripeAll    = normalizeStripe(stripeRaw);
       const stripePaid   = stripeAll.filter(r => r.is_paid);
       appendLog(`Stripe paid transactions kept: ${stripePaid.length}`);
 
+      // Build indexes
       const { byStripeId, byEmail, byClientKey } = buildIndexes(mondayActive, mondayOn);
+      // Map of ALL known clients (active or onboarding) for totals
+      const clientsAll = new Map();
+      mondayOn.forEach(r => clientsAll.set(r.client_key, r));
+      mondayActive.forEach(r => clientsAll.set(r.client_key, r));
+      const onboardingSet = new Set(mondayOn.map(r => r.client_key));
 
+      // Match Stripe → Monday
       const matched = [];
       const unmatched = [];
-
       for(const t of stripePaid){
         let m = null;
         if(t.customer_id && byStripeId.has(t.customer_id)){
@@ -713,100 +533,72 @@ Krilen Andoque</textarea>
         } else if(t.client_key && byClientKey.has(t.client_key)){
           m = byClientKey.get(t.client_key);
         } else {
-          const guess = (function(sKey){
-            if(!sKey) return null;
-            const tks = tokens(sKey);
-            if(tks.size === 0) return null;
-            let bestKey = null, bestScore = 0;
-            for(const [key] of byClientKey.entries()){
-              const ks = tokens(key);
-              const inter = [...tks].filter(x => ks.has(x)).length;
-              const score = inter / Math.max(tks.size, ks.size);
-              if(score > bestScore){ bestScore = score; bestKey = key; }
-            }
-            return bestScore >= 0.5 ? bestKey : null;
-          })(t.client_key);
+          const guess = fuzzyGuessClientKey(t.client_key, byClientKey);
           if(guess && byClientKey.has(guess)) m = byClientKey.get(guess);
         }
-
         if(m){
           matched.push({
-            _source: m._source,
-            client_name: m.client_name,
             client_key: m.client_key,
             amount: t.amount || 0,
-            created_utc: t.created_utc || '',
+            created_utc: t.created_utc || ''
           });
         } else {
           unmatched.push(t);
         }
       }
-
       appendLog(`Matched paid Stripe → Monday: ${matched.length}`);
       appendLog(`Unmatched paid Stripe: ${unmatched.length}`);
 
-      const activeMap   = new Map(mondayActive.map(r => [r.client_key, r]));
-      const paidTotals  = computePaidTotals(activeMap, matched);
+      // Totals per client (Active or Onboarding)
+      const paidTotals = computePaidTotals(clientsAll, matched);
 
-      // Per-person
-      const perPerson = buildPerPersonLists(mondayActive, paidTotals);
-      renderPersonSections(perPerson.fb,  '#fbWrap');
-      renderPersonSections(perPerson.tt,  '#ttWrap');
-      renderPersonSections(perPerson.yt,  '#ytWrap');
-      renderPersonSections(perPerson.smm, '#smmWrap');
+      // Build per-person maps (ACTIVE assignments only; Onboarding has no assignments)
+      const fbPer = buildPerPerson(mondayActive, paidTotals, 'Facebook', ROSTERS.FB, onboardingSet);
+      const ttPer = buildPerPerson(mondayActive, paidTotals, 'TikTok',   ROSTERS.TT, onboardingSet);
+      const ytPer = buildPerPerson(mondayActive, paidTotals, 'YouTube',  ROSTERS.YT, onboardingSet);
+      const smmPer= buildPerPerson(mondayActive, paidTotals, 'Posts',    ROSTERS.SMM, onboardingSet);
 
-      // Per-platform
-      const fbPlat = buildPlatformSummary(mondayActive, paidTotals, 'Facebook');
-      const ttPlat = buildPlatformSummary(mondayActive, paidTotals, 'TikTok');
-      const ytPlat = buildPlatformSummary(mondayActive, paidTotals, 'YouTube');
-      const smmPlat = buildPlatformSummary(mondayActive, paidTotals, 'Posts');
+      // Render
+      renderPerPerson(fbPer,  '#fbWrap');
+      renderPerPerson(ttPer,  '#ttWrap');
+      renderPerPerson(ytPer,  '#ytWrap');
+      renderPerPerson(smmPer, '#smmWrap');
 
-      renderPlatformSummary(fbPlat,  '#fbPlatSum');
-      renderPlatformSummary(ttPlat,  '#ttPlatSum');
-      renderPlatformSummary(ytPlat,  '#ytPlatSum');
-      renderPlatformSummary(smmPlat, '#smmPlatSum');
-
-      // Search handlers (per-person)
-      hookSearch('#searchFB',  '#fbOnly',  '#fbClear',  '#fbWrap');
-      hookSearch('#searchTT',  '#ttOnly',  '#ttClear',  '#ttWrap');
-      hookSearch('#searchYT',  '#ytOnly',  '#ytClear',  '#ytWrap');
-      hookSearch('#searchSMM', '#smmOnly', '#smmClear', '#smmWrap');
+      // Onboarding summary (new clients)
+      const onbSummary = buildOnboardingSummary(mondayOn, paidTotals);
+      renderOnboardingSummary(onbSummary, '#onbWrap');
 
       // Downloads
-      const fbCsv  = flattenPerPersonForCsv(perPerson.fb);
-      const ttCsv  = flattenPerPersonForCsv(perPerson.tt);
-      const ytCsv  = flattenPerPersonForCsv(perPerson.yt);
-      const smmCsv = flattenPerPersonForCsv(perPerson.smm);
+      const fbCsv  = flattenPerPersonForCsv(fbPer);
+      const ttCsv  = flattenPerPersonForCsv(ttPer);
+      const ytCsv  = flattenPerPersonForCsv(ytPer);
+      const smmCsv = flattenPerPersonForCsv(smmPer);
+      const onbCsv = flattenOnboardingForCsv(onbSummary);
 
       $('#dlFB').disabled = fbCsv.length === 0;
       $('#dlTT').disabled = ttCsv.length === 0;
       $('#dlYT').disabled = ytCsv.length === 0;
       $('#dlSMM').disabled = smmCsv.length === 0;
+      $('#dlOnb').disabled = onbCsv.length === 0;
+      $('#dlUnmatched').disabled = unmatched.length === 0;
 
       $('#dlFB').onclick  = () => downloadCSV('facebook_ams_per_person.csv', fbCsv);
       $('#dlTT').onclick  = () => downloadCSV('tiktok_ams_per_person.csv', ttCsv);
       $('#dlYT').onclick  = () => downloadCSV('youtube_ams_per_person.csv', ytCsv);
-      $('#dlSMM').onclick = () => downloadCSV('smm_posts_per_person.csv', smmCsv);
-
-      const fbPlatCsv  = flattenPlatformForCsv(fbPlat);
-      const ttPlatCsv  = flattenPlatformForCsv(ttPlat);
-      const ytPlatCsv  = flattenPlatformForCsv(ytPlat);
-      const smmPlatCsv = flattenPlatformForCsv(smmPlat);
-
-      $('#dlFBPlat').disabled  = fbPlatCsv.length === 0;
-      $('#dlTTPlat').disabled  = ttPlatCsv.length === 0;
-      $('#dlYTPlat').disabled  = ytPlatCsv.length === 0;
-      $('#dlSMMPlat').disabled = smmPlatCsv.length === 0;
-
-      $('#dlFBPlat').onclick  = () => downloadCSV('facebook_platform_summary.csv', fbPlatCsv);
-      $('#dlTTPlat').onclick  = () => downloadCSV('tiktok_platform_summary.csv', ttPlatCsv);
-      $('#dlYTPlat').onclick  = () => downloadCSV('youtube_platform_summary.csv', ytPlatCsv);
-      $('#dlSMMPlat').onclick = () => downloadCSV('smm_platform_summary.csv', smmPlatCsv);
-
-      $('#dlUnmatched').disabled = unmatched.length === 0;
+      $('#dlSMM').onclick = () => downloadCSV('smm_per_person.csv', smmCsv);
+      $('#dlOnb').onclick = () => downloadCSV('onboarding_summary.csv', onbCsv);
       $('#dlUnmatched').onclick = () => downloadCSV('unmatched_paid_stripe_rows.csv', unmatched);
 
       appendLog('Done.');
+    }
+
+    function downloadCSV(filename, rows){
+      const csv = Papa.unparse(rows);
+      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
     }
 
     $('#go').addEventListener('click', run);
