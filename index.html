@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Team–Client Matcher (AM / CSM / SMM) — Paid Stripe Only</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    :root { --bg:#0b1020; --card:#121931; --muted:#9fb0c0; --text:#eef3f8; --accent:#6aa3ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }
+    header { padding:24px; border-bottom:1px solid #1d2748; }
+    h1 { margin:0 0 6px; font-size:20px; }
+    p.sub { margin:0; font-size:13px; color:var(--muted); }
+    main { padding:24px; display:grid; gap:16px; grid-template-columns: 1fr; max-width:1100px; margin:0 auto; }
+    .card { background:var(--card); border:1px solid #1d2748; border-radius:16px; padding:16px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:end; }
+    label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+    input[type=file], textarea { width:100%; background:#0c1430; color:var(--text); border:1px solid #223158; border-radius:10px; padding:10px 12px; }
+    textarea { min-height:92px; resize:vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .col { flex:1 1 260px; min-width:260px; }
+    button { background:linear-gradient(180deg, #2b58ff, #0049ff); color:white; border:none; padding:12px 16px; border-radius:12px; font-weight:600; cursor:pointer; }
+    button.ghost { background:transparent; border:1px solid #2b58ff; color:#cfe0ff; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; background:#0c1430; border:1px solid #223158; color:#cfe0ff; font-size:12px; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { border-bottom:1px solid #1d2748; padding:10px; font-size:13px; text-align:left; }
+    th { color:#cfe0ff; font-weight:600; }
+    .muted { color:var(--muted); }
+    .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media (max-width: 900px){ .grid-2{ grid-template-columns:1fr; } }
+    footer { padding:18px 24px; color:#90a6bd; font-size:12px; text-align:center; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background:#0c1430; padding:2px 6px; border-radius:6px; border:1px solid #223158; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Team–Client Matcher (AM / CSM / SMM) — Paid Stripe Only</h1>
+    <p class="sub">Upload 3 CSVs (Monday Active, Monday Onboarding, Stripe), then click <strong>Match & Export</strong>. We match by Stripe ID first.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <div class="row">
+        <div class="col">
+          <label>1) Monday — Active Clients CSV (has <span class="code">Stripe ID</span>)</label>
+          <input type="file" id="mondayActive" accept=".csv" />
+        </div>
+        <div class="col">
+          <label>2) Monday — Onboarding/New Clients CSV (client names only)</label>
+          <input type="file" id="mondayOnboarding" accept=".csv" />
+        </div>
+        <div class="col">
+          <label>3) Stripe — Transactions CSV (ideally with <span class="code">Customer ID</span>, plus <span class="code">Status</span>, <span class="code">Customer Description</span>, <span class="code">Customer Email</span>)</label>
+          <input type="file" id="stripeCsv" accept=".csv" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px; gap:8px; flex-wrap:wrap;">
+        <button id="go">Match & Export</button>
+        <button class="ghost" id="dlMatched" disabled>Download: Matched Clients per Manager (CSV)</button>
+        <button class="ghost" id="dlPerson" disabled>Download: Person Summary (AM/CSM/SMM) (CSV)</button>
+        <button class="ghost" id="dlUnmatched" disabled>Download: Unmatched Stripe Rows (CSV)</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="grid-2">
+        <div>
+          <h3 style="margin-top:0;">Allowed Managers</h3>
+          <p class="sub" style="margin-bottom:8px;">Only these names will be matched. Edit if needed (comma or newline separated).</p>
+          <div class="grid-2">
+            <div>
+              <label>CSMs</label>
+              <textarea id="csmList">Kizzia
+Anthony Jenkins
+Rain G
+Shao
+Sandra Catalina Mateus Abdala
+Niima Biuibrahim
+Preston Mast
+Gabriela Castelao</textarea>
+            </div>
+            <div>
+              <label>FB AMs</label>
+              <textarea id="fbList">Evarose
+Charlene
+Joshua Advincula
+Rainier Vann Muñoz
+Marie Guirjen
+Veronica Trigo
+May Muñoz</textarea>
+            </div>
+          </div>
+          <div class="grid-2" style="margin-top:8px;">
+            <div>
+              <label>TT AMs</label>
+              <textarea id="ttList">Laura Dimadi
+Carren Evangelista</textarea>
+            </div>
+            <div>
+              <label>YT AMs</label>
+              <textarea id="ytList">Cade Holmquist
+YouTube</textarea>
+            </div>
+          </div>
+          <div style="margin-top:8px;">
+            <label>SMMs</label>
+            <textarea id="smmList">Jasmine Garcia
+Krilen Andoque</textarea>
+          </div>
+        </div>
+        <div>
+          <h3 style="margin-top:0;">Status & Columns</h3>
+          <div class="row">
+            <span class="pill">Stripe statuses counted: <strong>Paid / Succeeded / Complete(d)</strong></span>
+          </div>
+          <p class="sub" style="margin-top:12px;">Monday columns used (if present): <span class="code">Client Name</span>/<span class="code">Name</span>, <span class="code">CSM</span>, <span class="code">FB AM</span>, <span class="code">TT AM</span>, <span class="code">YT AM</span>, <span class="code">SMM</span>, <span class="code">Email</span>, <span class="code">Stripe ID</span>, service hints.</p>
+          <p class="sub">Stripe columns used: <span class="code">Customer ID</span> (or any field with <span class="code">cus_*</span>), <span class="code">Status</span>, <span class="code">Customer Description</span>, <span class="code">Customer Email</span>, <span class="code">Amount</span>, <span class="code">Created date (UTC)</span>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin-top:0;">Preview — Matched Clients per Manager</h3>
+      <p class="sub">Paid transactions only. Aggregated per <strong>Role, Person, Client</strong>.</p>
+      <div id="preview"></div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin-top:0;">Preview — Person Summary</h3>
+      <p class="sub">Totals per <strong>Role, Person</strong> across all matched clients (paid-only). Includes unique client count and date span.</p>
+      <div id="previewPerson"></div>
+    </section>
+
+    <section class="card">
+      <h3 style="margin-top:0;">Run Log</h3>
+      <pre id="log" class="sub" style="white-space:pre-wrap;"></pre>
+    </section>
+  </main>
+
+  <footer>
+    Built for quick, offline matching on GitHub Pages. No data leaves your browser.
+  </footer>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+    const logEl = $("#log");
+    const appendLog = (msg) => { logEl.textContent += msg + "\\n"; };
+
+    const parseList = (text) => (text || "").split(/\\n|,/).map(s => s.trim()).filter(Boolean);
+
+    function normalize(s){
+      if(!s) return "";
+      s = String(s).toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g, "");
+      s = s.replace(/&/g, " and ");
+      s = s.replace(/[^a-z0-9]+/g, " ").trim();
+      return s;
+    }
+    const tokens = (s) => new Set(normalize(s).split(" ").filter(Boolean));
+
+    function headerRowIndex(data){
+      for(let i=0;i<Math.min(10, data.length);i++){
+        const row = data[i].map(v => (v||"").toString().trim());
+        if(row.includes("Name") || row.includes("Client Name")) return i;
+        if(row.includes("Main Status") || row.includes("CSM") || row.includes("FB AM")) return i;
+      }
+      return 0;
+    }
+
+    function csvToObjectsWithHeaderGuess(file){
+      return new Promise((resolve, reject) => {
+        Papa.parse(file, {
+          complete: (res) => {
+            const rows = res.data.filter(r => r.length && r.some(cell => (cell||"").toString().trim() !== ""));
+            if(rows.length === 0){ return resolve([]); }
+            const hdrIdx = headerRowIndex(rows);
+            const headers = rows[hdrIdx].map(h => (h||"").toString().trim());
+            const objs = [];
+            for(let i = hdrIdx + 1; i < rows.length; i++){
+              const r = rows[i];
+              const obj = {};
+              headers.forEach((h, idx) => obj[h || `col_${idx}`] = r[idx]);
+              const hasAny = Object.values(obj).some(v => String(v||"").trim() !== "");
+              if(hasAny) objs.push(obj);
+            }
+            resolve(objs);
+          },
+          error: (err) => reject(err)
+        });
+      });
+    }
+
+    const toFloat = (x) => {
+      if(x==null) return NaN;
+      const s = String(x).replace(/,/g, "");
+      const m = s.match(/[0-9.-]+/g);
+      if(!m) return NaN;
+      return parseFloat(m.join(""));
+    };
+
+    function downloadCSV(filename, rows){
+      const csv = Papa.unparse(rows);
+      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    }
+
+    const dedup = (arr) => Array.from(new Set(arr));
+
+    function matchAllowed(raw, allowedMap){
+      if(!raw) return [];
+      const parts = String(raw).split(/[,/;]| and /i).map(s => s.trim()).filter(Boolean);
+      const out = [];
+      for(const p of parts){
+        const n = normalize(p);
+        if(allowedMap.has(n)) out.push(allowedMap.get(n));
+        else {
+          const t = tokens(n);
+          for(const [key, canon] of allowedMap.entries()){
+            const k = tokens(key);
+            const tInK = [...t].every(tok => k.has(tok));
+            const kInT = [...k].every(tok => t.has(tok));
+            if(t.size && (tInK || kInT)){ out.push(canon); break; }
+          }
+        }
+      }
+      return dedup(out);
+    }
+
+    function buildAllowedMaps(){
+      const roles = {
+        CSM: parseList($('#csmList').value),
+        FB:  parseList($('#fbList').value),
+        TT:  parseList($('#ttList').value),
+        YT:  parseList($('#ytList').value),
+        SMM: parseList($('#smmList').value),
+      };
+      const maps = {};
+      for(const [role, list] of Object.entries(roles)){
+        maps[role] = new Map(list.map(n => [normalize(n), n]));
+      }
+      return maps;
+    }
+
+    function activeFlag(val, headerEcho){
+      if(val == null) return false;
+      const s = String(val).trim();
+      if(!s) return false;
+      if(headerEcho && s.toLowerCase() === headerEcho.toLowerCase()) return false;
+      return true;
+    }
+
+    function servicesFromRow(row){
+      const svcCols = {
+        Facebook: 'Facebook Service',
+        TikTok: 'TikTok',
+        YouTube: 'Youtube Service',
+        Posts: 'Organic Post Service',
+      };
+      const out = [];
+      for(const [svc, col] of Object.entries(svcCols)){
+        if(col in row && activeFlag(row[col], col)) out.push(svc);
+      }
+      return out;
+    }
+
+    function clientNameFromMondayRow(row){
+      if('Client Name' in row && String(row['Client Name']).trim() !== '') return String(row['Client Name']).trim();
+      if('Name' in row){
+        return String(row['Name']).replace(/^Main\\s*-\\s*/i, '').trim();
+      }
+      return '';
+    }
+
+    function normalizeMonday(mondayObjs, allowed){
+      return mondayObjs.map(row => {
+        const clientName = clientNameFromMondayRow(row);
+        return {
+          client_name: clientName,
+          client_key: normalize(clientName),
+          email: (row['Email'] || '').toString().trim().toLowerCase(),
+          stripe_id: (row['Stripe ID'] || '').toString().trim().toLowerCase(), // e.g., cus_XXXX from Active sheet
+          csm_list: matchAllowed(row['CSM'], allowed.CSM),
+          fb_am: matchAllowed(row['FB AM'], allowed.FB),
+          tt_am: matchAllowed(row['TT AM'], allowed.TT),
+          yt_am: matchAllowed(row['YT AM'], allowed.YT),
+          smm_list: matchAllowed(row['SMM'], allowed.SMM),
+          services: servicesFromRow(row),
+        };
+      }).filter(r => r.client_key && r.client_key !== 'client name' && r.client_key !== 'name' && r.client_key !== 'stripe id');
+    }
+
+    // Try hard to extract Stripe Customer ID (cus_...) from any column
+    function extractStripeCustomerId(obj){
+      // common headers first
+      const direct = obj['Customer ID'] || obj['Customer Id'] || obj['Customer'] || obj['customer_id'] || obj['customer'];
+      const tryStr = (v) => {
+        if(!v) return '';
+        const m = String(v).match(/cus_[a-z0-9]+/i);
+        return m ? m[0].toLowerCase() : '';
+      };
+      let id = tryStr(direct);
+      if(id) return id;
+      // search all fields for a cus_ token
+      for(const [k,v] of Object.entries(obj)){
+        const m = tryStr(v);
+        if(m) return m;
+      }
+      return '';
+    }
+
+    function normalizeStripe(stripeObjs){
+      return stripeObjs.map(row => {
+        const status = (row['Status'] || '').toString().toLowerCase();
+        const isPaid = ['paid','succeeded','success','captured','complete','completed','true'].some(w => status.includes(w));
+        const custName = (row['Customer Description'] || '').toString();
+        const custEmail = (row['Customer Email'] || '').toString().trim().toLowerCase();
+        const customerId = extractStripeCustomerId(row); // prioritize this
+        return {
+          charge_id: row['id'] || row['charge_id'] || row['Charge ID'] || '',
+          created_utc: row['Created date (UTC)'] || row['created_utc'] || row['Created'] || '',
+          amount: toFloat(row['Amount']),
+          currency: row['Currency'] || row['currency'] || 'usd',
+          status: row['Status'] || '',
+          is_paid: isPaid,
+          customer_name: custName,
+          customer_email: custEmail,
+          customer_id: customerId,         // <-- Stripe Customer ID (cus_...)
+          client_key: normalize(custName),
+        };
+      });
+    }
+
+    function buildMondayIndex(mondayAll){
+      const byEmail = new Map();
+      const byClientKey = new Map();
+      const byStripeId = new Map();
+      for(const r of mondayAll){
+        if(r.email) byEmail.set(r.email, r);
+        if(r.client_key && !byClientKey.has(r.client_key)) byClientKey.set(r.client_key, r);
+        if(r.stripe_id){ byStripeId.set(r.stripe_id, r); }
+      }
+      return { byEmail, byClientKey, byStripeId };
+    }
+
+    function fuzzyGuessClientKey(sKey, byClientKey){
+      if(!sKey) return null;
+      const t = tokens(sKey);
+      if(t.size === 0) return null;
+      let bestKey = null, bestScore = 0;
+      for(const [key] of byClientKey.entries()){
+        const tk = tokens(key);
+        const inter = [...t].filter(x => tk.has(x)).length;
+        const score = inter / Math.max(t.size, tk.size);
+        if(score > bestScore){ bestScore = score; bestKey = key; }
+      }
+      if(bestScore >= 0.5) return bestKey;
+      return null;
+    }
+
+    function aggregatePerManager(rows){
+      const out = [];
+      const push = (role, person, client, services, amt, count, firstDt, lastDt) => {
+        out.push({
+          Role: role,
+          Person: person,
+          Client: client,
+          Services: services.join('; '),
+          Paid_Transactions: count,
+          Paid_Amount_Total: Number(amt || 0).toFixed(2),
+          First_Paid_Date: firstDt || '',
+          Last_Paid_Date: lastDt || ''
+        });
+      };
+
+      function summarizeFor(role, nameGetter){
+        const map = new Map();
+        for(const r of rows){
+          const names = nameGetter(r);
+          if(!names || names.length === 0) continue;
+          for(const person of names){
+            const key = person + '||' + r.client_name_monday;
+            if(!map.has(key)){
+              map.set(key, {
+                person, client: r.client_name_monday,
+                services: new Set(r.services && r.services.length ? r.services : []),
+                amount: 0, count: 0, first: null, last: null
+              });
+            }
+            const entry = map.get(key);
+            entry.amount += (r.amount || 0);
+            entry.count += 1;
+            const dt = r.created_utc ? new Date(r.created_utc) : null;
+            if(dt && !isNaN(dt)){
+              if(!entry.first || dt < entry.first) entry.first = dt;
+              if(!entry.last || dt > entry.last) entry.last = dt;
+            }
+            (r.services || []).forEach(s => entry.services.add(s));
+          }
+        }
+        for(const v of map.values()){
+          push(role, v.person, v.client, [...v.services], v.amount, v.count,
+               v.first ? v.first.toISOString() : '', v.last ? v.last.toISOString() : '');
+        }
+      }
+
+      // AMs by service (Posts go to SMM, not AM)
+      summarizeFor('AM', r => {
+        const names = [];
+        if((r.services||[]).includes('Facebook') && r.fb_am && r.fb_am.length) names.push(r.fb_am[0]);
+        if((r.services||[]).includes('TikTok')   && r.tt_am && r.tt_am.length) names.push(r.tt_am[0]);
+        if((r.services||[]).includes('YouTube')  && r.yt_am && r.yt_am.length) names.push(r.yt_am[0]);
+        return dedup(names);
+      });
+
+      // CSMs across all matched revenue
+      summarizeFor('CSM', r => r.csm_list || []);
+
+      // SMMs only for Posts
+      summarizeFor('SMM', r => ((r.services||[]).includes('Posts') ? (r.smm_list||[]) : []));
+
+      out.sort((a,b) => a.Role.localeCompare(b.Role) || a.Person.localeCompare(b.Person) || a.Client.localeCompare(b.Client));
+      return out;
+    }
+
+    function aggregatePersonSummary(perManagerRows){
+      const map = new Map();
+      for(const r of perManagerRows){
+        const key = r.Role + '||' + r.Person;
+        if(!map.has(key)){
+          map.set(key, {
+            Role: r.Role,
+            Person: r.Person,
+            Unique_Clients: new Set(),
+            Paid_Transactions: 0,
+            Paid_Amount_Total: 0,
+            First_Paid_Date: null,
+            Last_Paid_Date: null
+          });
+        }
+        const e = map.get(key);
+        e.Unique_Clients.add(r.Client);
+        e.Paid_Transactions += Number(r.Paid_Transactions || 0);
+        e.Paid_Amount_Total += Number(r.Paid_Amount_Total || 0);
+        const f = r.First_Paid_Date ? new Date(r.First_Paid_Date) : null;
+        const l = r.Last_Paid_Date ? new Date(r.Last_Paid_Date) : null;
+        if(f && !isNaN(f)) e.First_Paid_Date = (!e.First_Paid_Date || f < e.First_Paid_Date) ? f : e.First_Paid_Date;
+        if(l && !isNaN(l)) e.Last_Paid_Date = (!e.Last_Paid_Date || l > e.Last_Paid_Date) ? l : e.Last_Paid_Date;
+      }
+      const out = [];
+      for(const v of map.values()){
+        out.push({
+          Role: v.Role,
+          Person: v.Person,
+          Unique_Clients: v.Unique_Clients.size,
+          Paid_Transactions: v.Paid_Transactions,
+          Paid_Amount_Total: v.Paid_Amount_Total.toFixed(2),
+          First_Paid_Date: v.First_Paid_Date ? v.First_Paid_Date.toISOString() : '',
+          Last_Paid_Date: v.Last_Paid_Date ? v.Last_Paid_Date.toISOString() : ''
+        });
+      }
+      out.sort((a,b) => a.Role.localeCompare(b.Role) || a.Person.localeCompare(b.Person));
+      return out;
+    }
+
+    function renderTable(rows, targetSel){
+      if(rows.length === 0){ document.querySelector(targetSel).innerHTML = '<p class="muted">No data.</p>'; return; }
+      const headers = Object.keys(rows[0]);
+      let html = '<div style="overflow:auto"><table><thead><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr></thead><tbody>';
+      html += rows.slice(0,200).map(r => '<tr>' + headers.map(h => `<td>${(r[h]??'')}</td>`).join('') + '</tr>').join('');
+      html += '</tbody></table></div>';
+      if(rows.length > 200) html += `<p class="sub">Showing first 200 of ${rows.length} rows.</p>`;
+      document.querySelector(targetSel).innerHTML = html;
+    }
+
+    async function run(){
+      logEl.textContent = '';
+      const mondayActiveFile = $('#mondayActive').files[0];
+      const mondayOnboardingFile = $('#mondayOnboarding').files[0];
+      const stripeFile = $('#stripeCsv').files[0];
+      if(!mondayActiveFile || !mondayOnboardingFile || !stripeFile){
+        alert('Please select all 3 CSV files.'); return;
+      }
+      appendLog('Parsing Monday Active...');
+      const mondayActive = await csvToObjectsWithHeaderGuess(mondayActiveFile);
+      appendLog(`  Monday Active rows: ${mondayActive.length}`);
+
+      appendLog('Parsing Monday Onboarding...');
+      const mondayOn = await csvToObjectsWithHeaderGuess(mondayOnboardingFile);
+      appendLog(`  Monday Onboarding rows: ${mondayOn.length}`);
+
+      appendLog('Parsing Stripe...');
+      const stripeRaw = await csvToObjectsWithHeaderGuess(stripeFile);
+      appendLog(`  Stripe rows: ${stripeRaw.length}`);
+
+      const allowed = buildAllowedMaps();
+      const mondayNorm = normalizeMonday([...mondayActive, ...mondayOn], allowed);
+      appendLog(`Normalized Monday clients: ${mondayNorm.length}`);
+
+      const stripeNormAll = normalizeStripe(stripeRaw);
+      const stripePaid = stripeNormAll.filter(r => r.is_paid);
+      appendLog(`Stripe paid transactions kept: ${stripePaid.length}`);
+
+      // Build Monday indexes (email, client name, and STRIPE ID from Active sheet)
+      const mondayIndex = (function(){
+        const byEmail = new Map();
+        const byClientKey = new Map();
+        const byStripeId = new Map();
+        for(const r of mondayNorm){
+          if(r.email) byEmail.set(r.email, r);
+          if(r.client_key && !byClientKey.has(r.client_key)) byClientKey.set(r.client_key, r);
+          if(r.stripe_id) byStripeId.set(r.stripe_id, r);
+        }
+        return { byEmail, byClientKey, byStripeId };
+      })();
+
+      // Match priority: Customer ID -> Email -> Exact Name -> Fuzzy Name
+      const matched = [];
+      const unmatched = [];
+      for(const t of stripePaid){
+        let m = null;
+        if(t.customer_id && mondayIndex.byStripeId.has(t.customer_id)){
+          m = mondayIndex.byStripeId.get(t.customer_id);
+        } else if(t.customer_email && mondayIndex.byEmail.has(t.customer_email)){
+          m = mondayIndex.byEmail.get(t.customer_email);
+        } else if(t.client_key && mondayIndex.byClientKey.has(t.client_key)){
+          m = mondayIndex.byClientKey.get(t.client_key);
+        } else {
+          const guess = fuzzyGuessClientKey(t.client_key, mondayIndex.byClientKey);
+          if(guess && mondayIndex.byClientKey.has(guess)){
+            m = mondayIndex.byClientKey.get(guess);
+          }
+        }
+        if(m){
+          matched.push({
+            ...t,
+            client_name_monday: m.client_name,
+            fb_am: m.fb_am,
+            tt_am: m.tt_am,
+            yt_am: m.yt_am,
+            csm_list: m.csm_list,
+            smm_list: m.smm_list,
+            services: m.services,
+          });
+        } else {
+          unmatched.push(t);
+        }
+      }
+
+      appendLog(`Matched paid Stripe → Monday: ${matched.length}`);
+      appendLog(`Unmatched paid Stripe: ${unmatched.length}`);
+
+      const perManager = aggregatePerManager(matched);
+      renderTable(perManager, '#preview');
+
+      const personSummary = aggregatePersonSummary(perManager);
+      renderTable(personSummary, '#previewPerson');
+
+      // Downloads
+      $('#dlMatched').disabled = perManager.length === 0;
+      $('#dlMatched').onclick = () => downloadCSV('matched_clients_per_manager.csv', perManager);
+
+      $('#dlPerson').disabled = personSummary.length === 0;
+      $('#dlPerson').onclick = () => downloadCSV('person_summary_totals.csv', personSummary);
+
+      $('#dlUnmatched').disabled = unmatched.length === 0;
+      $('#dlUnmatched').onclick = () => downloadCSV('unmatched_paid_stripe_rows.csv', unmatched);
+
+      appendLog('Done.');
+    }
+
+    $('#go').addEventListener('click', run);
+  </script>
+</body>
+</html>
