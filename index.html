@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Per-Person Client Summaries (FB/TT/YT AMs + SMM) — Paid Stripe, No Splits</title>
+  <title>Per-Person & Per-Platform Summaries — Paid Stripe (No Splits)</title>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <style>
     :root { --bg:#0b1020; --card:#121931; --muted:#9fb0c0; --text:#eef3f8; --accent:#6aa3ff; --hl:#1d305f; }
@@ -38,12 +38,13 @@
     .toolbar label { margin:0; display:flex; align-items:center; gap:6px; }
     .hl { background: var(--hl); font-weight:600; }
     .hidden { display:none !important; }
+    .sumline { margin:6px 0 10px; font-size:13px; color:#cfe0ff; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Per-Person Client Summaries — No Splits</h1>
-    <p class="sub">Upload <strong>Monday Active</strong>, <strong>Monday Onboarding</strong>, and <strong>Stripe</strong> CSVs. We match by <span class="code">Stripe ID (cus_*)</span> → <span class="code">email</span> → <span class="code">name</span> → <span class="code">fuzzy</span>. Only Monday Active creates assignments. “Paid” counts only Stripe rows with a paid/success/completed-like status.</p>
+    <h1>Per-Person & Per-Platform Summaries — No Splits</h1>
+    <p class="sub">Upload <strong>Monday Active</strong>, <strong>Monday Onboarding</strong>, and <strong>Stripe</strong> CSVs. Match by <span class="code">Stripe ID (cus_*)</span> → <span class="code">email</span> → <span class="code">name</span> → <span class="code">fuzzy</span>. Only Monday Active creates assignments. Stripe “paid” includes paid/succeeded/complete-like statuses.</p>
   </header>
 
   <main>
@@ -63,11 +64,18 @@
         </div>
       </div>
       <div class="downloads">
-        <button class="ghost" id="dlFB" disabled>Download: Facebook AMs (CSV)</button>
-        <button class="ghost" id="dlTT" disabled>Download: TikTok AMs (CSV)</button>
-        <button class="ghost" id="dlYT" disabled>Download: YouTube AMs (CSV)</button>
-        <button class="ghost" id="dlSMM" disabled>Download: SMM (Posts) (CSV)</button>
-        <button class="ghost" id="dlUnmatched" disabled>Download: Unmatched Paid Stripe Rows (CSV)</button>
+        <!-- Per-person CSVs -->
+        <button class="ghost" id="dlFB" disabled>Download: Facebook AMs (per-person)</button>
+        <button class="ghost" id="dlTT" disabled>Download: TikTok AMs (per-person)</button>
+        <button class="ghost" id="dlYT" disabled>Download: YouTube AMs (per-person)</button>
+        <button class="ghost" id="dlSMM" disabled>Download: SMM (per-person)</button>
+        <!-- Platform CSVs -->
+        <button class="ghost" id="dlFBPlat" disabled>Download: Facebook — platform summary</button>
+        <button class="ghost" id="dlTTPlat" disabled>Download: TikTok — platform summary</button>
+        <button class="ghost" id="dlYTPlat" disabled>Download: YouTube — platform summary</button>
+        <button class="ghost" id="dlSMMPlat" disabled>Download: SMM — platform summary</button>
+
+        <button class="ghost" id="dlUnmatched" disabled>Download: Unmatched Paid Stripe Rows</button>
         <button id="go">Generate Summaries</button>
       </div>
     </section>
@@ -79,7 +87,7 @@
           <p class="sub" style="margin-bottom:8px;">Only these names are considered valid (comma or newline separated). Clients show under each matching person.</p>
           <div class="grid-2">
             <div>
-              <label>FB AMs</label>
+              <label>Facebook AMs</label>
               <textarea id="fbList">Evarose
 Charlene
 Joshua Advincula
@@ -89,14 +97,14 @@ Veronica Trigo
 May Muñoz</textarea>
             </div>
             <div>
-              <label>TT AMs</label>
+              <label>TikTok AMs</label>
               <textarea id="ttList">Laura Dimadi
 Carren Evangelista</textarea>
             </div>
           </div>
           <div class="grid-2" style="margin-top:8px;">
             <div>
-              <label>YT AMs</label>
+              <label>YouTube AMs</label>
               <textarea id="ytList">Cade Holmquist
 YouTube</textarea>
             </div>
@@ -108,17 +116,36 @@ Krilen Andoque</textarea>
           </div>
         </div>
         <div>
-          <h3 class="platformHead">Columns detected</h3>
+          <h3 class="platformHead">Columns expected</h3>
           <ul class="sub">
-            <li>Monday Active: <span class="code">Client Name</span>/<span class="code">Name</span>, <span class="code">FB AM</span>, <span class="code">TT AM</span>, <span class="code">YT AM</span>, <span class="code">SMM</span>, <span class="code">Email</span>, <span class="code">Stripe ID</span>, service flags: <span class="code">Facebook Service</span>, <span class="code">TikTok</span>, <span class="code">Youtube Service</span>, <span class="code">Organic Post Service</span></li>
+            <li>Monday Active: <span class="code">Client Name</span>/<span class="code">Name</span>, <span class="code">FB AM</span>, <span class="code">TT AM</span>, <span class="code">YT AM</span>, <span class="code">SMM</span>, <span class="code">Email</span>, <span class="code">Stripe ID</span>, and service flags: <span class="code">Facebook Service</span>, <span class="code">TikTok</span>, <span class="code">Youtube Service</span>, <span class="code">Organic Post Service</span></li>
             <li>Onboarding: name-only fallback (doesn’t create assignments)</li>
             <li>Stripe: <span class="code">Customer ID</span> (cus_*), <span class="code">Status</span>, <span class="code">Customer Description</span>, <span class="code">Customer Email</span>, <span class="code">Amount</span>, <span class="code">Created date (UTC)</span></li>
           </ul>
-          <p class="sub">If a Monday cell has multiple names (e.g. “A / B”), the client appears in <em>each</em> person’s list (no splitting).</p>
+          <p class="sub">If a Monday cell lists multiple people (e.g. “A / B”), the client appears in <em>each</em> person’s list. Platform totals will double-count clients that use multiple services (by design — no splits).</p>
         </div>
       </div>
     </section>
 
+    <!-- Platform summaries -->
+    <section class="card">
+      <h3 class="platformHead">Facebook — Platform Summary</h3>
+      <div id="fbPlatSum"></div>
+    </section>
+    <section class="card">
+      <h3 class="platformHead">TikTok — Platform Summary</h3>
+      <div id="ttPlatSum"></div>
+    </section>
+    <section class="card">
+      <h3 class="platformHead">YouTube — Platform Summary</h3>
+      <div id="ytPlatSum"></div>
+    </section>
+    <section class="card">
+      <h3 class="platformHead">SMM (Posts) — Platform Summary</h3>
+      <div id="smmPlatSum"></div>
+    </section>
+
+    <!-- Per-person lists -->
     <section class="card">
       <h3 class="platformHead">Facebook AMs — Per-Person Lists</h3>
       <div class="toolbar">
@@ -233,6 +260,7 @@ Krilen Andoque</textarea>
       setTimeout(() => URL.revokeObjectURL(url), 1500);
     }
 
+    // Allowed maps
     function buildAllowedMaps(){
       const roles = {
         FB:  parseList($('#fbList').value),
@@ -247,6 +275,7 @@ Krilen Andoque</textarea>
       return maps;
     }
 
+    // Return ALL valid allowed names found in the cell (order preserved; soft token match)
     function pickAssignedAll(rawCell, allowedMap){
       if(!rawCell) return [];
       const out = [];
@@ -264,7 +293,7 @@ Krilen Andoque</textarea>
           }
         }
       }
-      return out.filter((v, i, a) => a.indexOf(v) === i);
+      return out.filter((v, i, a) => a.indexOf(v) === i); // dedup keep order
     }
 
     function activeFlag(val, headerEcho){
@@ -291,10 +320,13 @@ Krilen Andoque</textarea>
 
     function clientNameFromMondayRow(row){
       if('Client Name' in row && String(row['Client Name']).trim() !== '') return String(row['Client Name']).trim();
-      if('Name' in row){ return String(row['Name']).replace(/^Main\\s*-\\s*/i, '').trim(); }
+      if('Name' in row){
+        return String(row['Name']).replace(/^Main\\s*-\\s*/i, '').trim();
+      }
       return '';
     }
 
+    // Normalize Monday Active (multi-assign allowed)
     function normalizeMondayActive(objs, allowed){
       return objs.map(row => {
         const clientName = clientNameFromMondayRow(row);
@@ -313,6 +345,7 @@ Krilen Andoque</textarea>
       }).filter(r => r.client_key && !['client name','name','stripe id'].includes(r.client_key));
     }
 
+    // Normalize Monday Onboarding (name-only fallback; no assignments)
     function normalizeMondayOnboarding(objs){
       return objs.map(row => {
         const clientName = clientNameFromMondayRow(row);
@@ -328,6 +361,7 @@ Krilen Andoque</textarea>
       }).filter(r => r.client_key && !['client name','name','stripe id'].includes(r.client_key));
     }
 
+    // Extract Stripe Customer ID (cus_...)
     function extractStripeCustomerId(obj){
       const direct = obj['Customer ID'] || obj['Customer Id'] || obj['Customer'] || obj['customer_id'] || obj['customer'];
       const tryStr = (v) => {
@@ -397,7 +431,7 @@ Krilen Andoque</textarea>
     }
 
     function computePaidTotals(activeMap, matchedRows){
-      const totals = new Map();
+      const totals = new Map(); // client_key -> {sum, count, first, last}
       for(const r of matchedRows){
         if(!activeMap.has(r.client_key)) continue;
         const amt = Number(r.amount || 0);
@@ -414,7 +448,7 @@ Krilen Andoque</textarea>
       return totals;
     }
 
-    // Build per-person lists; include numeric value for totals
+    // ----- Per-person lists (no splits) -----
     function buildPerPersonLists(activeList, paidTotals){
       function listsFor(serviceKey){
         const per = new Map(); // person -> rows[]
@@ -450,7 +484,7 @@ Krilen Andoque</textarea>
               Stripe_ID: a.stripe_id || '',
               Services: (a.services || []).join('; '),
               Revenue_Paid: revenueNum > 0 ? revenueNum.toFixed(2) : 'Not paid',
-              Revenue_Paid_Value: revenueNum,              // <- numeric for totals
+              Revenue_Paid_Value: revenueNum, // numeric for totals
               Paid_Txns: txCount,
               First_Paid_Date: first,
               Last_Paid_Date: last
@@ -510,24 +544,96 @@ Krilen Andoque</textarea>
       }
     }
 
-    function flattenForCsv(mapPersonToRows){
+    function flattenPerPersonForCsv(mapPersonToRows){
       const out = [];
       for(const [person, rows] of mapPersonToRows.entries()){
         const total = rows.reduce((acc, r) => acc + (Number(r.Revenue_Paid_Value) || 0), 0);
-        // Person summary header row
         out.push({ Person: person, Client: '—TOTAL—', Email: '', Stripe_ID: '', Services: '', Revenue_Paid: total.toFixed(2), Paid_Txns: '', First_Paid_Date: '', Last_Paid_Date: '' });
-        // Then the client rows
         for(const r of rows){
           const { Revenue_Paid_Value, ...rest } = r;
           out.push(rest);
         }
       }
-      // stable sort Person then keep header+rows order per person
       out.sort((a,b)=> (a.Person||'').localeCompare(b.Person||'') || ((a.Client==='—TOTAL—')? -1 : 0));
       return out;
     }
 
-    // --- Search / Highlight per-platform ---
+    // ----- Per-platform summaries (one row per client; shows assigned people for that platform) -----
+    function buildPlatformSummary(activeList, paidTotals, platformKey){
+      // Select rows with this service
+      const rows = [];
+      const seen = new Set(); // client_key
+      for(const a of activeList){
+        const svcs = a.services || [];
+        const hasSvc =
+          platformKey === 'Facebook' ? svcs.includes('Facebook') :
+          platformKey === 'TikTok'   ? svcs.includes('TikTok')   :
+          platformKey === 'YouTube'  ? svcs.includes('YouTube')  :
+          platformKey === 'Posts'    ? svcs.includes('Posts')    : false;
+        if(!hasSvc) continue;
+
+        if(seen.has(a.client_key)) continue;
+        seen.add(a.client_key);
+
+        let people = [];
+        if(platformKey === 'Facebook') people = a.fb_ams || [];
+        if(platformKey === 'TikTok')   people = a.tt_ams || [];
+        if(platformKey === 'YouTube')  people = a.yt_ams || [];
+        if(platformKey === 'Posts')    people = a.smms   || [];
+
+        const tot = paidTotals.get(a.client_key);
+        const revenueNum = tot ? tot.sum : 0;
+        const txCount = tot ? tot.count : 0;
+        const first = tot && tot.first ? tot.first.toISOString() : '';
+        const last  = tot && tot.last  ? tot.last.toISOString()  : '';
+
+        rows.push({
+          Platform: platformKey,
+          Client: a.client_name,
+          Email: a.email || '',
+          Stripe_ID: a.stripe_id || '',
+          Assigned: people.join('; '),
+          Services: svcs.join('; '),
+          Revenue_Paid: revenueNum > 0 ? revenueNum.toFixed(2) : 'Not paid',
+          Revenue_Paid_Value: revenueNum, // numeric for totals
+          Paid_Txns: txCount,
+          First_Paid_Date: first,
+          Last_Paid_Date: last
+        });
+      }
+      rows.sort((a,b)=> a.Client.localeCompare(b.Client));
+      const totalRevenue = rows.reduce((acc, r) => acc + (Number(r.Revenue_Paid_Value)||0), 0);
+      const paidCount = rows.filter(r => (Number(r.Revenue_Paid_Value)||0) > 0).length;
+      return { rows, totals: { clients: rows.length, clientsPaid: paidCount, revenue: totalRevenue } };
+    }
+
+    function renderPlatformSummary(summary, targetSel){
+      const el = document.querySelector(targetSel);
+      el.innerHTML = '';
+      const { rows, totals } = summary || {};
+      if(!rows || rows.length === 0){ el.innerHTML = '<p class="muted">No data.</p>'; return; }
+
+      const sumLine = document.createElement('div');
+      sumLine.className = 'sumline';
+      sumLine.innerHTML = `<strong>Total Paid Revenue:</strong> ${formatNumber(totals.revenue)}  •  <strong>Clients:</strong> ${totals.clients}  •  <strong>Clients Paid:</strong> ${totals.clientsPaid} <span class="muted">(no splits; multi-service clients appear in multiple platforms)</span>`;
+      el.appendChild(sumLine);
+
+      const headers = Object.keys(rows[0]).filter(h => h !== 'Revenue_Paid_Value');
+      let html = '<div style="overflow:auto"><table><thead><tr>' +
+        headers.map(h => `<th>${h}</th>`).join('') +
+        '</tr></thead><tbody>';
+      html += rows.map(r => '<tr>' + headers.map(h => `<td>${r[h] ?? ''}</td>`).join('') + '</tr>').join('');
+      html += '</tbody></table></div>';
+      el.insertAdjacentHTML('beforeend', html);
+    }
+
+    function flattenPlatformForCsv(summary){
+      const { rows, totals } = summary || { rows: [], totals: { revenue: 0, clients: 0, clientsPaid: 0 } };
+      const header = [{ Platform: rows[0]?.Platform || '', Client: '—TOTAL—', Email: '', Stripe_ID: '', Assigned: '', Services: '', Revenue_Paid: totals.revenue.toFixed(2), Paid_Txns: '', First_Paid_Date: '', Last_Paid_Date: '' }];
+      return header.concat(rows.map(({Revenue_Paid_Value, ...rest}) => rest));
+    }
+
+    // --- Search / Highlight per-person ---
     function applySearch(containerSel, term, onlyMatches){
       const wrap = document.querySelector(containerSel);
       if(!wrap) return;
@@ -543,11 +649,8 @@ Krilen Andoque</textarea>
           const clientText = normalize(clientCell ? clientCell.textContent : '');
           const isHit = q ? clientText.includes(q) : false;
           tr.classList.toggle('hl', isHit && !!q);
-          if(onlyMatches){
-            tr.classList.toggle('hidden', q ? !isHit : true);
-          }else{
-            tr.classList.remove('hidden');
-          }
+          if(onlyMatches){ tr.classList.toggle('hidden', q ? !isHit : true); }
+          else{ tr.classList.remove('hidden'); }
         });
         if(onlyMatches){
           const anyVisible = rows.some(r => !r.classList.contains('hidden'));
@@ -610,7 +713,19 @@ Krilen Andoque</textarea>
         } else if(t.client_key && byClientKey.has(t.client_key)){
           m = byClientKey.get(t.client_key);
         } else {
-          const guess = fuzzyGuessClientKey(t.client_key, byClientKey);
+          const guess = (function(sKey){
+            if(!sKey) return null;
+            const tks = tokens(sKey);
+            if(tks.size === 0) return null;
+            let bestKey = null, bestScore = 0;
+            for(const [key] of byClientKey.entries()){
+              const ks = tokens(key);
+              const inter = [...tks].filter(x => ks.has(x)).length;
+              const score = inter / Math.max(tks.size, ks.size);
+              if(score > bestScore){ bestScore = score; bestKey = key; }
+            }
+            return bestScore >= 0.5 ? bestKey : null;
+          })(t.client_key);
           if(guess && byClientKey.has(guess)) m = byClientKey.get(guess);
         }
 
@@ -632,25 +747,36 @@ Krilen Andoque</textarea>
 
       const activeMap   = new Map(mondayActive.map(r => [r.client_key, r]));
       const paidTotals  = computePaidTotals(activeMap, matched);
-      const lists       = buildPerPersonLists(mondayActive, paidTotals);
 
-      // Render sections
-      renderPersonSections(lists.fb,  '#fbWrap');
-      renderPersonSections(lists.tt,  '#ttWrap');
-      renderPersonSections(lists.yt,  '#ytWrap');
-      renderPersonSections(lists.smm, '#smmWrap');
+      // Per-person
+      const perPerson = buildPerPersonLists(mondayActive, paidTotals);
+      renderPersonSections(perPerson.fb,  '#fbWrap');
+      renderPersonSections(perPerson.tt,  '#ttWrap');
+      renderPersonSections(perPerson.yt,  '#ytWrap');
+      renderPersonSections(perPerson.smm, '#smmWrap');
 
-      // Search handlers
+      // Per-platform
+      const fbPlat = buildPlatformSummary(mondayActive, paidTotals, 'Facebook');
+      const ttPlat = buildPlatformSummary(mondayActive, paidTotals, 'TikTok');
+      const ytPlat = buildPlatformSummary(mondayActive, paidTotals, 'YouTube');
+      const smmPlat = buildPlatformSummary(mondayActive, paidTotals, 'Posts');
+
+      renderPlatformSummary(fbPlat,  '#fbPlatSum');
+      renderPlatformSummary(ttPlat,  '#ttPlatSum');
+      renderPlatformSummary(ytPlat,  '#ytPlatSum');
+      renderPlatformSummary(smmPlat, '#smmPlatSum');
+
+      // Search handlers (per-person)
       hookSearch('#searchFB',  '#fbOnly',  '#fbClear',  '#fbWrap');
       hookSearch('#searchTT',  '#ttOnly',  '#ttClear',  '#ttWrap');
       hookSearch('#searchYT',  '#ytOnly',  '#ytClear',  '#ytWrap');
       hookSearch('#searchSMM', '#smmOnly', '#smmClear', '#smmWrap');
 
-      // Downloads (include a “—TOTAL—” line for each person in CSV)
-      const fbCsv = flattenForCsv(lists.fb);
-      const ttCsv = flattenForCsv(lists.tt);
-      const ytCsv = flattenForCsv(lists.yt);
-      const smmCsv = flattenForCsv(lists.smm);
+      // Downloads
+      const fbCsv  = flattenPerPersonForCsv(perPerson.fb);
+      const ttCsv  = flattenPerPersonForCsv(perPerson.tt);
+      const ytCsv  = flattenPerPersonForCsv(perPerson.yt);
+      const smmCsv = flattenPerPersonForCsv(perPerson.smm);
 
       $('#dlFB').disabled = fbCsv.length === 0;
       $('#dlTT').disabled = ttCsv.length === 0;
@@ -661,6 +787,21 @@ Krilen Andoque</textarea>
       $('#dlTT').onclick  = () => downloadCSV('tiktok_ams_per_person.csv', ttCsv);
       $('#dlYT').onclick  = () => downloadCSV('youtube_ams_per_person.csv', ytCsv);
       $('#dlSMM').onclick = () => downloadCSV('smm_posts_per_person.csv', smmCsv);
+
+      const fbPlatCsv  = flattenPlatformForCsv(fbPlat);
+      const ttPlatCsv  = flattenPlatformForCsv(ttPlat);
+      const ytPlatCsv  = flattenPlatformForCsv(ytPlat);
+      const smmPlatCsv = flattenPlatformForCsv(smmPlat);
+
+      $('#dlFBPlat').disabled  = fbPlatCsv.length === 0;
+      $('#dlTTPlat').disabled  = ttPlatCsv.length === 0;
+      $('#dlYTPlat').disabled  = ytPlatCsv.length === 0;
+      $('#dlSMMPlat').disabled = smmPlatCsv.length === 0;
+
+      $('#dlFBPlat').onclick  = () => downloadCSV('facebook_platform_summary.csv', fbPlatCsv);
+      $('#dlTTPlat').onclick  = () => downloadCSV('tiktok_platform_summary.csv', ttPlatCsv);
+      $('#dlYTPlat').onclick  = () => downloadCSV('youtube_platform_summary.csv', ytPlatCsv);
+      $('#dlSMMPlat').onclick = () => downloadCSV('smm_platform_summary.csv', smmPlatCsv);
 
       $('#dlUnmatched').disabled = unmatched.length === 0;
       $('#dlUnmatched').onclick = () => downloadCSV('unmatched_paid_stripe_rows.csv', unmatched);
